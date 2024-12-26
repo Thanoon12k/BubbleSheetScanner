@@ -16,9 +16,7 @@ env/
 Thumbs.db
 
 # Project-specific
-results/
-*.jpg
-*.png
+
 
 # Logs
 *.log

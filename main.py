@@ -5,7 +5,6 @@ import cv2
 import numpy as np
 from imutils.perspective import four_point_transform
 import scipy
-import main_student_num
 class BubbleSheetScanner:
         """
         A class for scanning and grading bubble sheet multiple-choice exams.
@@ -40,16 +39,16 @@ class BubbleSheetScanner:
             return frame
 
         
-        def get_sub_images(self, warpedFrame):
+        def getSubImages(self, warpedFrame):
             height, width = warpedFrame.shape[:2]
 
             # Coordinates for each frame (as percentages of image dimensions)
             coordinates = [
-                {'top_left': (3.14, 1.6), 'bottom_right': (20.07, 23.27)},
-                {'top_left': (5.47, 28.089), 'bottom_right': (30.11, 93.098)},
-                {'top_left': (30.11, 28.089), 'bottom_right': (48.358, 93.098)},
-                {'top_left': (54.744, 28.089), 'bottom_right': (72.99, 93.098)},
-                {'top_left': (80.29, 28.089), 'bottom_right': (98.54, 93.098)}
+                {'top_left': (10, 21), 'bottom_right': (27, 38)},## student number image
+                {'top_left': (10, 40), 'bottom_right': (30, 90)},## questions  1 to 25
+                {'top_left': (33, 40), 'bottom_right': (52, 90)},## questions  26 to 50
+                {'top_left': (56, 40), 'bottom_right': (74, 90)},## questions  51 to 75
+                {'top_left': (79, 40), 'bottom_right': (96, 90)},## questions  76 to 100
             ]
 
             sub_images = []
@@ -92,13 +91,13 @@ class BubbleSheetScanner:
             """
             Perform perspective transform to get a top-down view of the bubble sheet.
             """
-            fourPoints, squareContours = bubbleSheetScanner.getFourPoints(cannyFrame)
+            fourPoints, squareContours = BSheetScanner.getFourPoints(cannyFrame)
             fourPoints = np.array(fourPoints, dtype="float32")
 
             # Draw the contours on the original frame
             cv2.drawContours(frame, squareContours, -1, (0, 255, 0), 2)
             cv2.imwrite("results/Four_Points_Frame.jpg", frame)
-            fourContours = bubbleSheetScanner.getFourPoints(cannyFrame)[1]
+            fourContours = BSheetScanner.getFourPoints(cannyFrame)[1]
 
             if len(fourPoints) >= 4:
                 newFourPoints = []
@@ -185,57 +184,22 @@ class BubbleSheetScanner:
                     adaptiveFrame = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 99, 9)
                     return adaptiveFrame
 
-
-# Create an instance of BubbleSheetScanner
-Scanner = BubbleSheetScanner()
-
-# Read and resize the input image
-image = cv2.imread('4q.jpg')
-h = int(round(600 * image.shape[0] / image.shape[1]))
-frame = cv2.resize(image, (600, h), interpolation=cv2.INTER_LANCZOS4)
-
-# Apply Canny edge detection
-cannyFrame = Scanner.getCannyFrame(frame)
-
-# Perform perspective transform
-warpedFrame =frame
-sub_images = Scanner.get_sub_images(warpedFrame)
-
-# warpedFrame=sub_images[0]
-# cv2.imshow(f'Sub Image {1}', warpedFrame)
-# cv2.waitKey(0)
-# Apply adaptive thresholding
-adaptiveFrame = Scanner.mygetAdaptiveThresh(warpedFrame)
-
-ovalContours = Scanner.mygetOvalContours(adaptiveFrame)
-
-contour_image = cv2.cvtColor(adaptiveFrame, cv2.COLOR_GRAY2BGR)
-cv2.drawContours(contour_image, ovalContours, -1, (0, 255, 0), 2)
-
-# Display the image with contours
-# cv2.imshow('Contours on Adaptive Frame', contour_image)
-# cv2.waitKey(0)
-# cv2.destroyAllWindows()
-
-# Save the frame
-# cv2.imwrite('results/adaptive_counters.jpg', contour_image)
-
-def find_student_answers(Scanner, warpedFrame, adaptiveFrame):
+def find_student_answers(BSheetScanner, warpedFrame, adaptiveFrame):
     bubbles_rows = 25
     bubbles_columns = 5
     total_bubbls=bubbles_columns*bubbles_rows
 
     # Detect oval contours
-    ovalContours = Scanner.mygetOvalContours(adaptiveFrame)
+    ovalContours = BSheetScanner.getOvalContours(adaptiveFrame)
 
     # Check if the count matches the expected number of bubbles
     if len(ovalContours) != (bubbles_rows * bubbles_columns):
         print('Invalid frame: Number of detected bubbles does not match the expected count.')
         return None
 
-    ovalContours = sorted(ovalContours, key=Scanner.y_cord_contour, reverse=False)
+    ovalContours = sorted(ovalContours, key=BSheetScanner.y_cord_contour, reverse=False)
     sliced_contours = [ovalContours[i:i+bubbles_columns] for i in range(0, len(ovalContours), bubbles_columns)]
-    sorted_slices = [sorted(slice, key=Scanner.x_cord_contour) for slice in sliced_contours]
+    sorted_slices = [sorted(slice, key=BSheetScanner.x_cord_contour) for slice in sliced_contours]
     ovalContours = [contour for slice in sorted_slices for contour in slice]
     student_number = ''
     answers=[]
@@ -262,14 +226,14 @@ def find_student_answers(Scanner, warpedFrame, adaptiveFrame):
             # cv2.destroyAllWindows()
         chosen_bubble_index=areas.index(max(areas))  
              
-        cv2.drawContours(adaptiveFrame, [row_bubbles[chosen_bubble_index]], -1, (0, 0, 255), 2)
+        cv2.drawContours(warpedFrame, [row_bubbles[chosen_bubble_index]], -1, (0, 0, 255), 2)
         
         if chosen_bubble_index != -1:
             student_number += str(chosen_bubble_index)
             answers.append(chosen_bubble_index) 
 
             # Draw blue edges around the chosen bubble for visualization
-            cv2.drawContours(warpedFrame, [row_bubbles[chosen_bubble_index]], -1, (255, 0, 0), 2)
+            cv2.drawContours(adaptiveFrame, [row_bubbles[chosen_bubble_index]], -1, (255, 0, 0), 2)
 
     # Display the final result
     cv2.imshow('Student Number Result', warpedFrame)
@@ -277,14 +241,147 @@ def find_student_answers(Scanner, warpedFrame, adaptiveFrame):
     cv2.imwrite('results/adaptive_counters.jpg', warpedFrame)
 
     cv2.destroyAllWindows()
-    print("answers: ",answers)
 
-    return answers
-student_number=main_student_num.find_student_number(Scanner,warpedFrame,adaptiveFrame)
-student_answers=find_student_answers(Scanner,warpedFrame,adaptiveFrame)
-print("student number:  ",student_number)
-print("student answers: ",student_answers)
-print("student corrected answers: ",student_answers)
+    return [answers,adaptiveFrame]
 
-correct_answers=Scanner.ANSWER_KEY
+def find_student_number(BSheetScanner, warpedFrame, adaptiveFrame):
+    bubbles_rows = 10
+    bubbles_columns = 4
+    total_bubbls=bubbles_columns*bubbles_rows
 
+    # Detect oval contours
+    ovalContours = BSheetScanner.getOvalContours(adaptiveFrame)
+
+    # Check if the count matches the expected number of bubbles
+    if len(ovalContours) != (bubbles_rows * bubbles_columns):
+        print('Invalid frame: Number of detected bubbles does not match the expected count.')
+        return None
+
+    # Sort contours by x-coordinate (column order)
+    ovalContours = sorted(ovalContours, key=BSheetScanner.x_cord_contour, reverse=False)
+    sliced_contours = [ovalContours[i:i+10] for i in range(0, len(ovalContours), 10)]
+    sorted_slices = [sorted(slice, key=BSheetScanner.y_cord_contour, reverse=False) for slice in sliced_contours]
+    ovalContours = [contour for slice in sorted_slices for contour in slice]
+
+    # ovalContours = sorted(ovalContours, key=bubbleSheetScanner.y_cord_contour, reverse=False)
+
+    student_number = ''
+   
+    for col in range(0,total_bubbls,bubbles_rows):
+        positions=[]
+        indexes=[]
+        areas=[]
+        # Extract contours for each column
+    
+        column_bubbles = ovalContours[col:col+bubbles_rows]
+        max_intensity = 0
+        chosen_bubble_index = -1
+
+        for j, bubble in enumerate(column_bubbles):
+            
+            positions.append([bubble[0][0][0],bubble[0][0][1]])
+            indexes.append([col,j])
+            mask = np.zeros(adaptiveFrame.shape, dtype="uint8")
+            cv2.drawContours(mask, [bubble], -1, 255, -1)
+            masked_region = cv2.bitwise_and(adaptiveFrame, adaptiveFrame, mask=mask)
+            total_intensity = cv2.countNonZero(masked_region)
+            areas.append(total_intensity)
+
+        chosen_bubble_index=areas.index(max(areas))        
+        cv2.drawContours(adaptiveFrame, [column_bubbles[chosen_bubble_index]], -1, (0, 0, 255), 2)
+        if chosen_bubble_index != -1:
+            student_number += str(chosen_bubble_index)
+
+    #         # Draw blue edges around the chosen bubble for visualization
+    #         cv2.drawContours(warpedFrame, [column_bubbles[chosen_bubble_index]], -1, (255, 0, 0), 2)
+
+    # # Display the final result
+    # cv2.putText(warpedFrame, f"Student Number: {student_number}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+    # cv2.imshow('Student Number Result', warpedFrame)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
+
+    return student_number,adaptiveFrame
+
+
+# Create an instance of BubbleSheetScanner
+BSheetScanner = BubbleSheetScanner()
+
+# Read and resize the input image
+image = cv2.imread('1.jpg')
+h = int(round(1200 * image.shape[0] / image.shape[1]))
+frame = cv2.resize(image, (1200, h), interpolation=cv2.INTER_LANCZOS4)
+# cv2.imshow(f'originalk image frame', image)
+# cv2.waitKey(0)
+# cv2.imshow(f'warrbed frame', frame)
+# cv2.waitKey(0)
+# cv2.destroyAllWindows()
+
+# Apply Canny edge detection
+cannyFrame = BSheetScanner.getCannyFrame(frame)
+
+# Perform perspective transform
+warpedFrame =frame
+sub_images = BSheetScanner.getSubImages(frame)
+student_answers=[]
+students_number=[]
+for i,img in enumerate(sub_images):
+    # cv2.imshow(f'subimage_{i} frame', img)
+    # cv2.waitKey(0)
+    
+    adaptiveFrame = BSheetScanner.getAdaptiveThresh(img)
+    ovalContours = BSheetScanner.getOvalContours(adaptiveFrame)
+    contour_image = cv2.cvtColor(adaptiveFrame, cv2.COLOR_GRAY2BGR)
+    cv2.drawContours(contour_image, ovalContours, -1, (0, 255, 0), 2)
+    
+    # cv2.imshow(f'subimage_{i} frame', contour_image)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
+    cv2.imwrite(f"sub_images/subimage_{i}.jpg",contour_image)
+
+    if (i > 0):  # questions blocks
+        block_answers,frame=find_student_answers(BSheetScanner,img,adaptiveFrame)
+        student_answers=student_answers+block_answers
+        print(f"block answers {(i-1)*25}-{i*25}: {student_answers[(i-1)*25:i*25]}")
+
+    else:    
+        student_number,frame=find_student_number(BSheetScanner,img,adaptiveFrame)
+        print(f"student number : {student_number}")
+
+
+
+# warpedFrame=sub_images[0]
+# cv2.imshow(f'Sub Image {1}', warpedFrame)
+# cv2.waitKey(0)
+# Apply adaptive thresholding
+print("student number:  ", student_number)
+
+# Calculate the student's score and return the indices of correct answers
+def calculate_student_score(student_answers, answer_key):
+    score = 0
+    max_score = 0  # To count the total number of valid questions
+    correct_indices = []  # List to store the indices of correctly answered questions
+
+    for question_number, correct_answer in answer_key.items():
+        if question_number < len(student_answers):  # Ensure index is valid
+            max_score += 1
+            if student_answers[question_number] == correct_answer:
+                score += 1
+                correct_indices.append(question_number)  # Store the index of the correct answer
+
+    return score, correct_indices
+
+# Call the function and print the results
+score, correct_indices = calculate_student_score(student_answers,  BSheetScanner.ANSWER_KEY)
+
+print(f"Student Score: {score}/{len(BSheetScanner.ANSWER_KEY)}")
+print(f"Percentage: {score / len(BSheetScanner.ANSWER_KEY) * 100:.2f}%")
+print(f"Correctly Answered Questions: {correct_indices}")
+
+# Display the image with contours
+# cv2.imshow('Contours on Adaptive Frame', contour_image)
+# cv2.waitKey(0)
+# cv2.destroyAllWindows()
+
+# Save the frame
+# cv2.imwrite('results/adaptive_counters.jpg', contour_image)
