@@ -32,7 +32,7 @@ class BubbleSheetScanner:
     def getSubImages(self, warpedFrame):
         height, width = warpedFrame.shape[:2]
         coordinates = [
-            {'top_left': (10, 21), 'bottom_right': (27, 38)},  # student number image
+            {'top_left': (8, 21), 'bottom_right': (27, 38)},  # student number image
             {'top_left': (10, 40), 'bottom_right': (30, 90)},  # questions 1 to 25
             {'top_left': (33, 40), 'bottom_right': (52, 90)},  # questions 26 to 50
             {'top_left': (56, 40), 'bottom_right': (74, 90)},  # questions 51 to 75
@@ -154,10 +154,10 @@ def find_student_answers(scanner, warpedFrame, adaptiveFrame,i):
 
     # cv2.imshow(f'B_{i}', warpedFrame)
     # cv2.waitKey(0)
-    # cv2.imwrite(f'results/block_{i}_answers.jpg', warpedFrame)
+    cv2.imwrite(f'results/block_{i}_answers.jpg', warpedFrame)
     # cv2.destroyAllWindows()
 
-    return [answers, adaptiveFrame]
+    return answers
 
 def find_student_number(scanner, warpedFrame, adaptiveFrame,i):
     bubbles_rows = 10
@@ -187,9 +187,9 @@ def find_student_number(scanner, warpedFrame, adaptiveFrame,i):
     
     # cv2.imshow(f'B_{i}', warpedFrame)
     # cv2.waitKey(0)
-    # cv2.imwrite(f'results/B_{i}_answers.jpg', warpedFrame)
+    cv2.imwrite(f'results/B_{i}_answers.jpg', warpedFrame)
     # cv2.destroyAllWindows()
-    return student_number, warpedFrame
+    return student_number
 
 def calculate_student_score(student_answers, answer_key):
     score = 0
@@ -205,61 +205,65 @@ def calculate_student_score(student_answers, answer_key):
 
     return score, correct_indices
 
-# Main execution
-if __name__ == "__main__":
-    scanner = BubbleSheetScanner()
 
-    image = cv2.imread('1.jpg')
-    h = int(round(1200 * image.shape[0] / image.shape[1]))
-    frame = cv2.resize(image, (1200, h), interpolation=cv2.INTER_LANCZOS4)
+def write_results_to_csv(student_number, score, correct_indices):
+        import os
+        import pandas as pd
 
-    cannyFrame = scanner.getCannyFrame(frame)
-    warpedFrame = frame
-    sub_images = scanner.getSubImages(frame)
+        # Define file path
+        file_path = 'student_results.csv'
 
-    student_answers = []
-    student_number = ''
-
-    for i, img in enumerate(sub_images):
-        
-        if i > 0:
-            block_answers, frame = find_student_answers(scanner, img, scanner.getAdaptiveThresh(img),i)
-            student_answers += block_answers
-            print(f"block answers {(i-1)*25}-{i*25}: {student_answers[(i-1)*25:i*25]}")
+        # Check if the file exists
+        if os.path.exists(file_path):
+            # Load existing DataFrame
+            results_df = pd.read_csv(file_path)
         else:
-            student_number, frame = find_student_number(scanner, img, scanner.getAdaptiveThresh(img),i)
-            print(f"student number : {student_number}")
+            # Create a new DataFrame with the header if the file doesn't exist
+            results_df = pd.DataFrame(columns=['Student Number'] + ['Score from 100'] + [f'Q{i+1}' for i in range(100)])
 
-    print("student number:  ", student_number)
+        # Create a new row for the student
+        new_row = pd.DataFrame(
+            [[student_number] + [score] + ['True' if i in correct_indices else 'False' for i in range(100)]],
+            columns=results_df.columns
+        )
 
+        # Append the new row to the DataFrame
+        results_df = pd.concat([results_df, new_row], ignore_index=True)
+
+        # Save the updated DataFrame back to the CSV
+        results_df.to_csv(file_path, index=False)
+
+        print("Results saved to student_results.csv")
+
+
+scanner = BubbleSheetScanner()
+
+image = cv2.imread('1.jpg')
+h = int(round(1200 * image.shape[0] / image.shape[1]))
+frame = cv2.resize(image, (1200, h), interpolation=cv2.INTER_LANCZOS4)
+
+cannyFrame = scanner.getCannyFrame(frame)
+warpedFrame = frame
+sub_images = scanner.getSubImages(frame)
+
+student_answers = []
+student_number = ''
+
+for i, img in enumerate(sub_images):
     
-    score, correct_indices = calculate_student_score(student_answers, scanner.ANSWER_KEY)
-    print(f"Student Score: {score}/{len(scanner.ANSWER_KEY)}")
-    print(f"Percentage: {score / len(scanner.ANSWER_KEY) * 100:.2f}%")
-    print(f"Correctly Answered Questions: {correct_indices}")
-
-    import os
-    # Define file path
-    file_path = 'student_results.csv'
-
-    # Check if the file exists
-    if os.path.exists(file_path):
-        # Load existing DataFrame
-        results_df = pd.read_csv(file_path)
+    if i > 0:
+        block_answers = find_student_answers(scanner, img, scanner.getAdaptiveThresh(img), i)
+        student_answers += block_answers
+        print(f"block answers {(i-1)*25}-{i*25}: {student_answers[(i-1)*25:i*25]}")
     else:
-        # Create a new DataFrame with the header if the file doesn't exist
-        results_df = pd.DataFrame(columns=['Student Number'] +['Score from 100 ']+ [f'Q{i+1}' for i in range(100)])
+        student_number = find_student_number(scanner, img, scanner.getAdaptiveThresh(img), i)
+        print(f"student number : {student_number}")
 
-    # Create a new row for the student
-    new_row = pd.DataFrame(
-        [[student_number]+[score] + ['True' if i in correct_indices else 'False' for i in range(100)]],
-        columns=results_df.columns
-    )
+print("student number:  ", student_number)
 
-    # Append the new row to the DataFrame
-    results_df = pd.concat([results_df, new_row], ignore_index=True)
+score, correct_indices = calculate_student_score(student_answers, scanner.ANSWER_KEY)
+print(f"Student Score: {score}/{len(scanner.ANSWER_KEY)}")
+print(f"Percentage: {score / len(scanner.ANSWER_KEY) * 100:.2f}%")
+print(f"Correctly Answered Questions: {correct_indices}")
 
-    # Save the updated DataFrame back to the CSV
-    results_df.to_csv(file_path, index=False)
-
-    print("Results saved to student_results.csv")
+write_results_to_csv(student_number, score, correct_indices)
