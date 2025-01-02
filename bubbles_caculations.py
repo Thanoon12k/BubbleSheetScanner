@@ -45,16 +45,16 @@ def find_student_answers(adaptiveFrame,frame_contours,i):
             # ovalContours=fix_missing_counters(ovalContours,5)
             ovalContours=fix_missing_contours(ovalContours, bubbles_columns, axis='Y')
         # Convert the adaptive frame to color to display colored contours
-        color_frame = cv2.cvtColor(adaptiveFrame.copy(), cv2.COLOR_GRAY2BGR)
+        # color_frame = cv2.cvtColor(adaptiveFrame.copy(), cv2.COLOR_GRAY2BGR)
         
-        # Draw contours on the frame for visualization
-        for contour in ovalContours:
-            cv2.drawContours(color_frame, [contour], -1, (0, 255, 0), 2)
+        # # Draw contours on the frame for visualization
+        # for contour in ovalContours:
+        #     cv2.drawContours(color_frame, [contour], -1, (0, 255, 0), 2)
         
-        # Display the frame with contours
-        cv2.imshow(f'Contours_{i}', color_frame)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        # # Display the frame with contours
+        # cv2.imshow(f'Contours_{i}', color_frame)
+        # cv2.waitKey(0)
+        # cv2.destroyAllWindows()
 
         contours = sorted(ovalContours, key=lambda c: cv2.boundingRect(c)[0])
         sliced_contours =   [contours[i:i+bubbles_columns] for i in range(0, len(contours), bubbles_columns)]
