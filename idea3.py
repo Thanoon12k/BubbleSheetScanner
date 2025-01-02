@@ -31,42 +31,73 @@ def write_results_to_csv(student_number, score, correct_indices):
     print("Results saved to student_results.csv")
 
 
+
 def get_student_num_student_score(sub_images):
     
     student_answers = []
     student_number = ''
     # Process sub-images
     for i, img in enumerate(sub_images):
-        adaptive_img = scanner.getAdaptiveThresh(img)
-        if i > 0:
-            student_answers += scanner.find_student_answers(img, adaptive_img, i)
-            print(f"block answers {(i-1)*25}-{i*25}: {student_answers[(i-1)*25:i*25]}")
+        ad_image=getAdaptiveThresh(img)
+        counters=getCircularContours(ad_image)
+        if i != 0:
+            student_answers += find_student_answers(ad_image,counters, i)
+            # print(f"block answers {(i-1)*25}-{i*25}: {student_answers[(i-1)*25:i*25]}")
         else:
-            student_number = scanner.find_student_number(img, adaptive_img, i)
-            print(f"student number : {student_number}")
+            student_number = find_student_number( ad_image,counters, i)
+            # print(f"student number : {student_number}")
     return student_number,student_answers
+
+
+
+def analyse_sub_images(sub_images,i):
+    for sub_img in sub_images:
+        ad_image=getAdaptiveThresh(sub_img)
+
+        bubbles=getCircularContours(ad_image)
+        bubbles_count=len(bubbles)
+        if bubbles_count != 40 and bubbles_count !=125:
+                bubbles=getCircularContours(ad_image,sub_img,analyses=True)
+                bubbles_count=len(bubbles)
+        drawed_bubbles=draw_contours_on_frame(sub_img.copy(),bubbles,blue=255)
+        
+        display_images([drawed_bubbles],"img",100)
+        print(f'sub_img{i}_    {bubbles_count}')
+        save_images([ad_image,drawed_bubbles],f'page_{i}_',f'_({bubbles_count})_')  
+ 
 
 # Initialize the scanner
 scanner = BubbleSheetScanner()
 
-pdf_path = 'data/aa.pdf'
-
+pdf_path = 'aa.pdf'
 pdf_images=pdf_to_images(pdf_path)
-pdf_resized=resize_images(pdf_images,1200)
+pdf_images=resize_images(pdf_images,1200)
+# pdf_images=[cv2.imread("1.jpg")]
+   
+for i,image in enumerate(pdf_images):
+    sub_images=get_sub_images(image)
+    analyse_sub_images(sub_images,i)
+    display_images([image],"hh",60)
+    student_number,student_answers=get_student_num_student_score(sub_images)
+    
 
-save_images(pdf_resized,'resized_1200')
-
-for pdf_page in pdf_resized:
-    page_blocks=get_sub_images(pdf_page)
-    for blc in page_blocks:
-        adp_frame=getAdaptiveThresh()
-        cnts=getCircularContours(adp_frame)
-        lllll=len(cnts)
-        fm=draw_contours_on_frame(blc.copy(),cnts,red=255)       
-        display_images([fm],"fm",100)
-    std_number,std_score=get_student_num_student_score(page_blocks)
-    print(f"({std_number}) :: score: {std_score}")
+    score, correct_indices = calculate_student_score(student_answers, scanner.ANSWER_KEY)
+    write_results_to_csv(student_number, score, correct_indices)
+    print(f"Student ( {student_number} ) score : {score}, correct_answers: {correct_indices}")
+ 
         
+    # std_number,std_score=get_student_num_student_score(page_blocks)
+    # print(f"({std_number}) :: score: {std_score}")
+    
+#     ad_image=getAdaptiveThresh(image)
+#     bubbles=getCircularContours(ad_image)
+#     bubbles_count=len(bubbles)
+#     drawed_bubbles=draw_contours_on_frame(image.copy(),bubbles,blue=255)
+#     # display_images([image,ad_image,drawed_bubbles],'original',)
+#     print(f'image_{i}    {bubbles_count}')
+#     save_images([image,ad_image,drawed_bubbles],f'neew_idea_page_({bubbles_count})_o{i}')
+#     i=i+1
+
 # print('SN:',student_num)
 # print(f"answers:: {answers}")
 # num_of_contours_thio=4*10 + 100*5

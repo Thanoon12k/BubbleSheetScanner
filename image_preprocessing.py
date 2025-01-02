@@ -29,12 +29,17 @@ def pdf_to_images(pdf_path):
     print(f"Images saved in: {output_folder}")  
 
     return images
-def resize_images(images,w=800,h=1000):
-    for img in images:
-        img = img.resize((w, h))
-    return images
 
-def display_images(images, title, scale=100):
+def resize_images(images, width=1200):
+    resized_images = []
+    for img in images:
+        aspect_ratio = img.shape[1] / img.shape[0]
+        height = int(width / aspect_ratio)
+        resized_img = cv2.resize(img, (width, height))
+        resized_images.append(resized_img)
+    return resized_images
+
+def display_images(images, title="I", scale=100):
     for i, img in enumerate(images):
         if scale != 100:
             width = int(img.shape[1] * scale / 100)
@@ -76,15 +81,18 @@ def getAdaptiveThresh(frame,maxx=99,minn=9):
         gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
         blurred = cv2.GaussianBlur(gray, (5, 5), 0)
         return cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, maxx, minn)
-def save_images(images, folder_name):
+def save_images(images, folder_name,image_name_context=''):
     os.makedirs(folder_name, exist_ok=True)
     for i, img in enumerate(images):
-        filename = os.path.join(folder_name, f"{i}.jpg")
+        filename = os.path.join(folder_name, f"__{i}__{image_name_context}.jpg")
         cv2.imwrite(filename, img)
     print(f"Saved images to folder: {folder_name}")
 
-def getCircularContours(adaptiveFrame):
+def getCircularContours(adaptiveFrame,img=None,analyses=False):
         contours, _ = cv2.findContours(adaptiveFrame, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if analyses:
+            dd=draw_contours_on_frame(img.copy(),contours,red=255)
+            display_images([dd])
         circularContours = []
         contours = sorted(contours, key=lambda c: cv2.boundingRect(c)[1])  # Sort by y-axis
         total_width = 0
@@ -93,12 +101,24 @@ def getCircularContours(adaptiveFrame):
         for contour in contours:
             x, y, w, h = cv2.boundingRect(contour)
             aspect_ratio = w / h
-
-            if 0.8 <= aspect_ratio <= 1.4 and w > 20 and h > 20:
+            if analyses:
+                dd=draw_contours_on_frame(img.copy(),contour,red=255)
+                display_images([dd])
+                hull = cv2.convexHull(contour, returnPoints=False)
+                defects = cv2.convexityDefects(contour, hull)
+                area = cv2.contourArea(contour)
+                hull_area = cv2.contourArea(cv2.convexHull(contour))
+                solidity = float(area) / hull_area
+                
+                ll=-1
+                if defects is not None:
+                    ll=len(defects)
+                print(f"ratio: ({w},{h}, {aspect_ratio})  defects: {ll}    solidity: {solidity}  ")
+            if 0.7 <= aspect_ratio <= 1.5 and w > 18 and h > 18:
                 hull = cv2.convexHull(contour, returnPoints=False)
                 defects = cv2.convexityDefects(contour, hull)
 
-                if defects is not None and len(defects) > 5:
+                if defects is not None and len(defects) >= 5:
                     area = cv2.contourArea(contour)
                     hull_area = cv2.contourArea(cv2.convexHull(contour))
                     solidity = float(area) / hull_area
@@ -118,24 +138,71 @@ def draw_contours_on_frame(frame, contours,red=0,green=0,blue=0):
     
     cv2.drawContours(frame, contours, -1, (blue, green, red), 2)
     return frame
+
+
 def get_sub_images(image):
+        shift=0
         image = np.array(image)
         height, width = image.shape[:2]
-        coordinates = [
-            {'top_left': (8, 22), 'bottom_right': (27, 41)},  # student number image
-            {'top_left': (10, 40), 'bottom_right': (30, 90)},  # questions 1 to 25
-            {'top_left': (33, 40), 'bottom_right': (52, 90)},  # questions 26 to 50
-            {'top_left': (56, 40), 'bottom_right': (74, 90)},  # questions 51 to 75
-            {'top_left': (79, 40), 'bottom_right': (96, 90)},  # questions 76 to 100
-        ]
+        number_y_factor=0.212
+        answers_y_factor=0.39
+        number_box_height_factor=0.6
+        answers_box_height_factor=0.22
 
+        ## block one x0_y0_start= 0,09    0,23       
+        x0_start=int(0.09*width)
+        y0_start=int(number_y_factor*height)
+        x0_end=int(0.25*width)    # 0.09 is the first x 0.25*width is the last x of the student_number_block
+        
+        y0_end=int(y0_start+        ((x0_end-x0_start)//number_box_height_factor)         )
+        ## block2 x,y start == 
+        
+       
+        
+        x1_start=0.1042*width+shift
+        y1_start=answers_y_factor *height
+        x1_end=0.2875*width+shift
+        y1_end=int(y1_start+((x1_end-x1_start)//answers_box_height_factor))
+
+        shift=shift+(0.225*width)
+        x2_start=0.1042*width+shift
+        y2_start=answers_y_factor *height
+        x2_end=0.2875*width+shift
+        y2_end=int(y2_start+((x2_end-x2_start)//answers_box_height_factor))
+        
+        shift=shift+(0.225*width)
+        x3_start=0.1042*width+shift
+        y3_start=answers_y_factor *height
+        x3_end=0.2875*width+shift
+        y3_end=int(y3_start+((x3_end-x3_start)//answers_box_height_factor))
+
+
+        shift=shift+(0.225*width)
+        x4_start=0.1042*width+shift
+        y4_start=answers_y_factor *height
+        x4_end=0.2875*width+shift
+        y4_end=int(y4_start+((x4_end-x4_start)//answers_box_height_factor))
+
+
+        coordinates = {
+            'b1': [x0_start, y0_start, x0_end, y0_end],
+            'b2': [int(x1_start), int(y1_start), int(x1_end), int(y1_end)],
+            'b3': [int(x2_start), int(y2_start), int(x2_end), int(y2_end)],
+            'b4': [int(x3_start), int(y3_start), int(x3_end), int(y3_end)],
+            'b5': [int(x4_start), int(y4_start), int(x4_end), int(y4_end)],
+        }
+        
+        block1 = image[coordinates['b1'][1]:coordinates['b1'][3], coordinates['b1'][0]:coordinates['b1'][2]]
+        block2 = image[coordinates['b2'][1]:coordinates['b2'][3], coordinates['b2'][0]:coordinates['b2'][2]]
+        block3 = image[coordinates['b3'][1]:coordinates['b3'][3], coordinates['b3'][0]:coordinates['b3'][2]]
+        block4 = image[coordinates['b4'][1]:coordinates['b4'][3], coordinates['b4'][0]:coordinates['b4'][2]]
+        block5 = image[coordinates['b5'][1]:coordinates['b5'][3], coordinates['b5'][0]:coordinates['b5'][2]]
+        
         sub_images = []
-        for coord in coordinates:
-            x1 = int(coord['top_left'][0] * width / 100)
-            y1 = int(coord['top_left'][1] * height / 100)
-            x2 = int(coord['bottom_right'][0] * width / 100)
-            y2 = int(coord['bottom_right'][1] * height / 100)
-            sub_image = image[y1:y2, x1:x2]
-            sub_images.append(sub_image)
 
+        sub_images.append(block1)
+        sub_images.append(block2)
+        sub_images.append(block3)
+        sub_images.append(block4)
+        sub_images.append(block5)
         return sub_images
