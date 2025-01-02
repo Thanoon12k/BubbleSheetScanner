@@ -23,12 +23,13 @@ def get_student_num_student_score(sub_images):
     for i, img in enumerate(sub_images):
         ad_image=getAdaptiveThresh(img)
         counters=getCircularContours(ad_image)
-        if i != 0:
-            student_answers += find_student_answers(ad_image,counters, i)
-            # print(f"block answers {(i-1)*25}-{i*25}: {student_answers[(i-1)*25:i*25]}")
-        else:
+        if i == 0:
             student_number = find_student_number( ad_image,counters, i)
             # print(f"student number : {student_number}")
+        else:
+            student_answers += find_student_answers(ad_image,counters, i)
+            # print(f"block answers {(i-1)*25}-{i*25}: {student_answers[(i-1)*25:i*25]}")
+            
     return student_number,student_answers
 
 def get_answers_from_xlsx(path):
@@ -67,10 +68,10 @@ ANSWER_KEYS=get_answers_from_xlsx('answers.xlsx')
 student_number=0000
 score=0
 
-pdf_path = get_pdf_path()
-pdf_images = pdf_to_images(pdf_path)
-pdf_images=resize_images(pdf_images,1200)
-# pdf_images=[cv2.imread("1.jpg")]
+# pdf_path = get_pdf_path()
+# pdf_images = pdf_to_images(pdf_path)
+# pdf_images=resize_images(pdf_images,1200)
+pdf_images=[cv2.imread("1.jpg")]
    
 for i,image in enumerate(pdf_images):
     
