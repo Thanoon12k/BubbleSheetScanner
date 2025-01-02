@@ -26,7 +26,7 @@ def pdf_to_images(pdf_path):
             images.append(np.array(img))
             img.save(output_image_path)
         
-    print(f"Images saved in: {output_folder}")  
+    # print(f"Images saved in: {output_folder}")  
 
     return images
 
@@ -206,3 +206,19 @@ def get_sub_images(image):
         sub_images.append(block4)
         sub_images.append(block5)
         return sub_images
+
+def analyse_sub_images(sub_images,i):
+    for sub_img in sub_images:
+        ad_image=getAdaptiveThresh(sub_img)
+
+        bubbles=getCircularContours(ad_image)
+        bubbles_count=len(bubbles)
+        if bubbles_count != 40 and bubbles_count !=125:
+                bubbles=getCircularContours(ad_image,sub_img,analyses=True)
+                bubbles_count=len(bubbles)
+        drawed_bubbles=draw_contours_on_frame(sub_img.copy(),bubbles,blue=255)
+        
+        display_images([drawed_bubbles],"img",100)
+        print(f'sub_img{i}_    {bubbles_count}')
+        save_images([ad_image,drawed_bubbles],f'page_{i}_',f'_({bubbles_count})_')  
+ 

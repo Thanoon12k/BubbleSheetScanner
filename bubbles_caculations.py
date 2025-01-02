@@ -9,8 +9,8 @@ def find_student_answers(adaptiveFrame,counters,i):
 
         ovalContours = counters
         if len(ovalContours) != total_bubbles:
-            print(f'Student Answers {i}__ bubbles: {len(ovalContours)} does not match the expected count.')
-            return None
+            print(f'invalid number of bubbles {len(ovalContours)}__ img_{i}:  does not match the expected count. 125 ')
+            return []
 
         contours = sorted(ovalContours, key=lambda c: cv2.boundingRect(c)[0])
         sliced_contours =   [contours[i:i+bubbles_columns] for i in range(0, len(contours), bubbles_columns)]
@@ -45,9 +45,9 @@ def find_student_number(adaptiveFrame,frame_contours,i):
         
 
         if len(ovalContours) != total_bubbles:
-            print(f'Student number {i}__ bubbles: {len(ovalContours)} does not match the expected count.')
+            print(f'invalid number of bubbles {len(ovalContours)}__ : img_{i} does not match the expected count. 40')
 
-            return None
+            return []
 
         contours = sorted(ovalContours, key=lambda c: cv2.boundingRect(c)[0])
         sliced_contours = [contours[i:i+bubbles_rows] for i in range(0, len(contours), bubbles_rows)]
