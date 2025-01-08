@@ -220,5 +220,5 @@ def analyse_sub_images(sub_images,i):
         
         display_images([drawed_bubbles],"img",100)
         print(f'sub_img{i}_    {bubbles_count}')
-        save_images([ad_image,drawed_bubbles],f'page_{i}_',f'_({bubbles_count})_')  
+        # save_images([ad_image,drawed_bubbles],f'page_{i}_',f'_({bubbles_count})_')  
  

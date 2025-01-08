@@ -63,26 +63,29 @@ def write_results_to_csv(student_number, score, correct_indices):
         # Save the DataFrame to CSV
         results_df.to_csv(file_path, index=False)
 
-ANSWER_KEYS=get_answers_from_xlsx('answers.xlsx')
-student_number=0000
-score=0
 
-pdf_path = get_pdf_path()
-pdf_images = pdf_to_images(pdf_path)
-pdf_images=resize_images(pdf_images,1200)
-# pdf_images=[cv2.imread("1.jpg")]
+if __name__ == "__main__":
+
+            ANSWER_KEYS=get_answers_from_xlsx('answers.xlsx')
+            student_number=0000
+            score=0
+
+            pdf_path = get_pdf_path()
+            pdf_images = pdf_to_images(pdf_path)
+            pdf_images=resize_images(pdf_images,1200)
+            # pdf_images=[cv2.imread("1.jpg")]
 
 
-root = tk.Tk()
-root.withdraw()  # Hide the root window
+            root = tk.Tk()
+            root.withdraw()  # Hide the root window
 
-for i, image in enumerate(pdf_images):
-    sub_images = get_sub_images(image)
-    student_number, student_answers = get_student_num_student_score(sub_images)
-    score, correct_indices = calculate_student_score(student_answers, ANSWER_KEYS)
-    write_results_to_csv(student_number, score, correct_indices)
-    print(f"Student ( {student_number} ) score : {score}, correct_answers: {correct_indices}")
+            for i, image in enumerate(pdf_images):
+                sub_images = get_sub_images(image)
+                student_number, student_answers = get_student_num_student_score(sub_images)
+                score, correct_indices = calculate_student_score(student_answers, ANSWER_KEYS)
+                write_results_to_csv(student_number, score, correct_indices)
+                print(f"Student ( {student_number} ) score : {score}, correct_answers: {correct_indices}")
 
-    display_student_results(student_number, score, root)
+                display_student_results(student_number, score, root)
 
-root.mainloop()
+            root.mainloop()
