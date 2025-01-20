@@ -88,7 +88,7 @@ def save_images(images, folder_name,image_name_context=''):
         cv2.imwrite(filename, img)
     print(f"Saved images to folder: {folder_name}")
 
-def getCircularContours(adaptiveFrame,img=None,analyses=False):
+def getCircularContours(adaptiveFrame,canny_frame=None,analyses=False):
         contours, _ = cv2.findContours(adaptiveFrame, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if analyses:
             dd=draw_contours_on_frame(img.copy(),contours,red=255)
@@ -131,12 +131,20 @@ def getCircularContours(adaptiveFrame,img=None,analyses=False):
         if circularContours:
             bubbleWidthAvr = total_width / len(circularContours)
             bubbleHeightAvr = total_height / len(circularContours)
-
+        
         return circularContours
 
-def draw_contours_on_frame(frame, contours,red=0,green=0,blue=0):
-    
+def draw_contours_on_frame(frame, contours,color='r',display=False,add_colors=False):
+    if add_colors:
+        frame=cv2.cvtColor(frame.copy(), cv2.COLOR_GRAY2BGR)
+
+    blue,green,red=0,0,0
+    if color=='r':red=255
+    elif color=='b':blue=255
+    elif color=='g':green=255
     cv2.drawContours(frame, contours, -1, (blue, green, red), 2)
+    if display:
+        display_images([frame])
     return frame
 
 
@@ -221,4 +229,129 @@ def analyse_sub_images(sub_images,i):
         display_images([drawed_bubbles],"img",100)
         print(f'sub_img{i}_    {bubbles_count}')
         # save_images([ad_image,drawed_bubbles],f'page_{i}_',f'_({bubbles_count})_')  
- 
+def find_four_squares(frame, analyses=False):
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    edged = cv2.Canny(blurred, 50, 150)
+    
+    contours, _ = cv2.findContours(edged, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    squares = []
+    
+    for contour in contours:
+        approx = cv2.approxPolyDP(contour, 0.04 * cv2.arcLength(contour, True), True)
+        if len(approx) == 4:
+            x, y, w, h = cv2.boundingRect(approx)
+            aspect_ratio = w / float(h)
+            if 0.9 <= aspect_ratio <= 1.1 and w < frame.shape[1] / 10:  # Check if the contour is approximately square and width is less than frame width/10
+                squares.append(approx)
+    
+    # Sort squares by area and select the largest 4
+    squares = sorted(squares, key=cv2.contourArea, reverse=True)[:4]
+    
+    if analyses:
+        analyzed_frame = frame.copy()
+        cv2.drawContours(analyzed_frame, squares, -1, (0, 255, 0), 2)
+        display_images([analyzed_frame], "Analyzed Squares", 30)
+    
+    squares = sorted(squares, key=lambda c: cv2.boundingRect(c)[1])  # Sort by y-axis
+    squares[-2:] = sorted(squares[-2:], key=lambda c: cv2.boundingRect(c)[0])  # Sort by x-axis
+
+    return squares
+
+def get_five_sub_images(image, four_points):
+        image = np.array(image)
+        sub_images = []
+        
+        b1_x, b1_y = map(int, four_points[0][0][0])
+        b2_x, b2_y = map(int, four_points[1][0][0])
+        
+        b4_x, b4_y = map(int, four_points[3][0][0])
+        square_width = cv2.boundingRect(four_points[0])[2]
+        lower_blocks_x = b2_x
+        lower_blocks_y = b2_y + (square_width)
+        lower_blocks_x2 = b4_x + square_width
+        lower_blocks_y2 = b4_y 
+        lower_block_width =int( (lower_blocks_x2 - lower_blocks_x) // 4  )
+        upper_block_x1=lower_blocks_x
+        upper_block_x2=int(lower_block_width +(square_width//2))
+        upper_block_y1=b1_y+square_width
+        upper_block_y2=b2_y
+        cv2.rectangle(image, (upper_block_x1, upper_block_y1), (upper_block_x2, upper_block_y2), (0, 255, 0), 2)
+        sub_images.append(image[upper_block_y1:upper_block_y2, upper_block_x1:upper_block_x2])
+
+        for i in range(0,lower_block_width*4,lower_block_width):
+            x_start = lower_blocks_x + i
+            x_end = x_start + lower_block_width
+            cv2.rectangle(image, (x_start, lower_blocks_y), (x_end, lower_blocks_y2), (255, 0, ), 2)
+            sub_image = image[lower_blocks_y:lower_blocks_y2, x_start:x_end]
+            sub_images.append(sub_image)
+        display_images([image], "Lower Blocks", 30)
+        
+        return sub_images
+
+
+def OrigingetFourPoints( canny):
+        """
+        Find four corner points of the bubble sheet in the image.
+        """
+        squareContours = []
+        contours, hie = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if len(contours) > 0:
+            fourPoints = []
+            i = 0
+            for cnt in contours:
+                (x, y), (MA, ma), angle = cv2.minAreaRect(cnt)
+                epsilon = 0.04 * cv2.arcLength(cnt, False)
+                approx = cv2.approxPolyDP(cnt, epsilon, True)
+                x, y, w, h = cv2.boundingRect(cnt)
+                aspect_ratio = float(w) / h
+                approx_Length=len(approx)
+                if approx_Length == 4 and aspect_ratio >= 0.9 and aspect_ratio <= 1.1:
+                    M = cv2.moments(cnt)
+                    cx = int(M['m10'] / M['m00'])
+                    cy = int(M['m01'] / M['m00'])
+                    fourPoints.append((cx, cy))
+                    squareContours.append(cnt)
+                    i += 1
+            return fourPoints, squareContours
+
+def OrigingetCannyFrame( frame):
+        """
+        Apply Canny edge detection to the input frame.
+        """
+        gray = cv2.cvtColor(frame, cv2.COLOR_RGBA2GRAY)
+        frame = cv2.Canny(gray, 127, 255)
+        return frame
+
+def OrigingetAdaptiveThresh(frame):
+    """
+    Apply adaptive thresholding to the input frame with enhanced effect.
+    """
+    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+    blurred = cv2.GaussianBlur(frame, (9, 9), 0)  # Increase blur effect
+    adaptiveFrame = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 51, 7)
+    return adaptiveFrame
+
+def OrigingetOvalContours( adaptiveFrame):
+        """
+        Detect and return contours of oval-shaped bubbles in the image.
+        """
+        contours, hierarchy = cv2.findContours(adaptiveFrame, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        ovalContours = []
+
+        for contour in contours:
+            approx = cv2.approxPolyDP(contour, 0, True)
+            ret = 0
+            x, y, w, h = cv2.boundingRect(contour)
+
+            # Eliminating non-oval shapes by approximation length and aspect ratio
+            if (len(approx) > 15 and w / h <= 1.2 and w / h >= 0.8):
+                mask = np.zeros(adaptiveFrame.shape, dtype="uint8")
+                cv2.drawContours(mask, [contour], -1, 255, -1)
+                ret = cv2.matchShapes(mask, contour, 1, 0.0)
+
+                if (ret < 1):
+                    ovalContours.append(contour)
+                    
+
+        return ovalContours

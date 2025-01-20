@@ -3,7 +3,8 @@ import cv2
 import pandas as pd
 import os
 from GUI import get_pdf_path, display_student_results
-from image_preprocessing import getAdaptiveThresh, getCircularContours, get_sub_images, pdf_to_images, resize_images
+# from image_preprocessing import getAdaptiveThresh, getCircularContours, get_sub_images, pdf_to_images, resize_images,get_sub_images_from_4_points,find_four_squares
+from image_preprocessing import *
 import tkinter as tk
 from tkinter import filedialog
 
@@ -14,15 +15,14 @@ def calculate_student_score(student_answers, answer_key):
     return score, correct_indices
 
 def get_student_num_student_score(sub_images):
-    
     student_answers = []
     student_number = ''
-    # Process sub-images
     for i, img in enumerate(sub_images):
         ad_image=getAdaptiveThresh(img)
         counters=getCircularContours(ad_image)
+
         if i == 0:
-            student_number = find_student_number( ad_image,counters, i)
+            student_number = find_student_number(ad_image,counters, i)
             # print(f"student number : {student_number}")
         else:
             student_answers += find_student_answers(ad_image,counters, i)
@@ -70,22 +70,55 @@ if __name__ == "__main__":
             student_number=0000
             score=0
 
-            pdf_path = get_pdf_path()
-            pdf_images = pdf_to_images(pdf_path)
+            # pdf_path = get_pdf_path()
+            pdf_images = pdf_to_images("scan0.pdf")
             pdf_images=resize_images(pdf_images,1200)
-            # pdf_images=[cv2.imread("1.jpg")]
+            # pdf_images=[cv2.imread("Scan1.jpg")]
+            
+            # four_points=find_four_squares(pdf_images[0],analyses=True)
+            
+            # root = tk.Tk()
+            # root.withdraw()  # Hide the root window
 
+            for pp, image in enumerate(pdf_images):
+                student_answers = []
+                student_number = ''
+                canny=OrigingetCannyFrame(pdf_images[0])
+                adaptive=OrigingetCannyFrame(pdf_images[0])
+                # display_images([canny],'',50)
+                # display_images([adaptive],'',50)
+                four_points=find_four_squares(image,analyses=False)
+                sub_images =get_five_sub_images(image,four_points)
 
-            root = tk.Tk()
-            root.withdraw()  # Hide the root window
+                for i, img in enumerate(sub_images):
+                    # ad_image=getAdaptiveThresh(img)
+                    adaptive=getAdaptiveThresh(img)
+                    # display_images([adaptive],'ORiginal',100)
+                    # adaptive=getAdaptiveThresh(img)
+                    # display_images([adaptive],'mine',100)
+                    counters=getCircularContours(adaptive,img)
+                    n_contours=len(counters)
+                    draw_contours_on_frame(img.copy(),counters,color='b',display=True)
+                    # save_images([img],'results',f"img_{pp}")
 
-            for i, image in enumerate(pdf_images):
-                sub_images = get_sub_images(image)
-                student_number, student_answers = get_student_num_student_score(sub_images)
+                    if i == 0:
+                        student_number,chosen_bubbles = find_student_number(adaptive,counters, i,analyse=True)
+                        print(f"student number : {student_number}")
+                        draw_contours_on_frame(adaptive,chosen_bubbles,color='r',display=True,add_colors=True)
+                    
+                        
+                    else:
+                        
+                        block_answers,chosen_bubbles_ans=find_student_answers(adaptive,counters, i)
+                        student_answers += block_answers
+                        print(f"block answers {(i-1)*25}-{i*25}: {student_answers[(i-1)*25:i*25]}")
+                        draw_contours_on_frame(adaptive,chosen_bubbles_ans,color='r',display=True,add_colors=True)
+                        
+                
                 score, correct_indices = calculate_student_score(student_answers, ANSWER_KEYS)
                 write_results_to_csv(student_number, score, correct_indices)
                 print(f"Student ( {student_number} ) score : {score}, correct_answers: {correct_indices}")
 
-                display_student_results(student_number, score, root)
+                # display_student_results(student_number, score, root)
 
             root.mainloop()
