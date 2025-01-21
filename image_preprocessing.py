@@ -229,6 +229,7 @@ def analyse_sub_images(sub_images,i):
         display_images([drawed_bubbles],"img",100)
         print(f'sub_img{i}_    {bubbles_count}')
         # save_images([ad_image,drawed_bubbles],f'page_{i}_',f'_({bubbles_count})_')  
+
 def find_four_squares(frame, analyses=False):
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
@@ -262,13 +263,13 @@ def get_five_sub_images(image, four_points):
         image = np.array(image)
         sub_images = []
         
-        b1_x, b1_y = map(int, four_points[0][0][0])
-        b2_x, b2_y = map(int, four_points[1][0][0])
+        b1_x, b1_y = map(int, four_points[0][0][0]) #point 1
+        b2_x, b2_y = map(int, four_points[1][0][0]) #point 2
         
-        b4_x, b4_y = map(int, four_points[3][0][0])
+        b4_x, b4_y = map(int, four_points[3][0][0])#point 3
         square_width = cv2.boundingRect(four_points[0])[2]
-        lower_blocks_x = b2_x
-        lower_blocks_y = b2_y + (square_width)
+        lower_blocks_x =b2_x 
+        lower_blocks_y = int(b2_y + (square_width//1.5))
         lower_blocks_x2 = b4_x + square_width
         lower_blocks_y2 = b4_y 
         lower_block_width =int( (lower_blocks_x2 - lower_blocks_x) // 4  )
@@ -285,7 +286,7 @@ def get_five_sub_images(image, four_points):
             cv2.rectangle(image, (x_start, lower_blocks_y), (x_end, lower_blocks_y2), (255, 0, ), 2)
             sub_image = image[lower_blocks_y:lower_blocks_y2, x_start:x_end]
             sub_images.append(sub_image)
-        display_images([image], "Lower Blocks", 30)
+        # display_images([image], "Lower Blocks", 30)
         
         return sub_images
 

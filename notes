@@ -1,0 +1,47 @@
+
+
+def add_bubbles(column_contours):
+    contours = sorted(column_contours, key=lambda c: cv2.boundingRect(c)[1])  # sort vertically
+    while len(contours) < 10:
+            diffs = []
+            for i in range(0, len(contours)-1):
+                x1 = cv2.boundingRect(contours[i])[1]
+                x2 = cv2.boundingRect(contours[i + 1])[1]
+                diffs.append( x2 - x1)
+            
+            avg_space = sum(diffs) // len(diffs)
+            max_diff=max(diffs)
+            max_diffs_index=diffs.index(max_diff)
+            
+            new_contour = np.copy(contours[max_diffs_index])
+            new_contour[:, :, 1] += average_space
+            contours.insert(max_diffs_index,new_contour)
+            
+    return new_contours
+    
+def fix_missing_contours(ovalContours, expected_count, bubbles_collection_direction='x'):
+   if bubbles_collection_direction == 'y':
+        contours = sorted(ovalContours, key=lambda c: cv2.boundingRect(c)[0])
+        x_first, y, w, h = cv2.boundingRect(contours[0])
+        bubble_Radios=int(w//2)
+        #sort for answers
+        all_colunms=[]
+        column_contours=[]
+        new_column_contours=[]
+        for  c in contours:
+            x, y, w, h = cv2.boundingRect(c)
+            diff=abs(x-x_first)
+            if diff<bubble_Radios:
+                column_contours.append(c)
+            else:
+                cc_length=len(column_contours)
+                # if cc_length < 10:
+                #     new_column_contours=add_bubbles(column_contours)
+                
+                x_first=x
+                all_colunms.append(new_column_contours)
+                column_contours=[]
+
+        
+        return all_colunms
+        
