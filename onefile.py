@@ -1,45 +1,17 @@
 import cv2
 import pandas as pd
 import os
+import tkinter as tk
+from tkinter import filedialog
+import shutil
+
 import fitz  # PyMuPDF
 from PIL import Image
 import numpy as np
-import tkinter as tk
-from tkinter import filedialog
-
-def get_pdf_path():
-    root = tk.Tk()
-    root.withdraw()  # Hide the root window
-    file_path = filedialog.askopenfilename(filetypes=[("PDF files", "*.pdf")])
-    return file_path
-
-
-
-def display_student_results(student_number, score, root):
-    result_window = tk.Toplevel(root)
-    result_window.title("Student Results")
-
-    # Center the window on the screen
-    window_width = 300
-    window_height = 200
-    screen_width = root.winfo_screenwidth()
-    screen_height = root.winfo_screenheight()
-    position_top = int(screen_height / 2 - window_height / 2)
-    position_right = int(screen_width / 2 - window_width / 2)
-    result_window.geometry(f'{window_width}x{window_height}+{position_right}+{position_top}')
-
-    # Set background color
-    result_window.configure(bg='lightblue')
-
-    # Create and pack the labels and button with colors
-    tk.Label(result_window, text=f"Student Number: {student_number}", font=("Helvetica", 16), bg='lightblue', fg='darkblue').pack(pady=10)
-    tk.Label(result_window, text=f"Score: {score}", font=("Helvetica", 16), bg='lightblue', fg='darkblue').pack(pady=10)
-    tk.Button(result_window, text="OK", font=("Helvetica", 14), bg='darkblue', fg='white', command=result_window.destroy).pack(pady=10)
-
 
 def pdf_to_images(pdf_path):
     pdf_name = os.path.splitext(os.path.basename(pdf_path))[0]
-    output_folder = os.path.join(os.path.dirname(pdf_path), f"{pdf_name}_images")
+    output_folder = os.path.join(os.path.dirname(pdf_path), f"{pdf_name}_students")
     os.makedirs(output_folder, exist_ok=True)
 
     pdf_document = fitz.open(pdf_path)
@@ -60,7 +32,7 @@ def pdf_to_images(pdf_path):
         
     # print(f"Images saved in: {output_folder}")  
 
-    return images
+    return images,output_folder
 
 def resize_images(images, width=1200):
     resized_images = []
@@ -120,7 +92,7 @@ def save_images(images, folder_name,image_name_context=''):
         cv2.imwrite(filename, img)
     print(f"Saved images to folder: {folder_name}")
 
-def getCircularContours(adaptiveFrame,img=None,analyses=False):
+def getCircularContours(adaptiveFrame,canny_frame=None,analyses=False):
         contours, _ = cv2.findContours(adaptiveFrame, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if analyses:
             dd=draw_contours_on_frame(img.copy(),contours,red=255)
@@ -163,12 +135,20 @@ def getCircularContours(adaptiveFrame,img=None,analyses=False):
         if circularContours:
             bubbleWidthAvr = total_width / len(circularContours)
             bubbleHeightAvr = total_height / len(circularContours)
-
+        
         return circularContours
 
-def draw_contours_on_frame(frame, contours,red=0,green=0,blue=0):
-    
+def draw_contours_on_frame(frame, contours,color='r',display=False,add_colors=False):
+    if add_colors:
+        frame=cv2.cvtColor(frame.copy(), cv2.COLOR_GRAY2BGR)
+
+    blue,green,red=0,0,0
+    if color=='r':red=255
+    elif color=='b':blue=255
+    elif color=='g':green=255
     cv2.drawContours(frame, contours, -1, (blue, green, red), 2)
+    if display:
+        display_images([frame])
     return frame
 
 
@@ -253,138 +233,318 @@ def analyse_sub_images(sub_images,i):
         display_images([drawed_bubbles],"img",100)
         print(f'sub_img{i}_    {bubbles_count}')
         # save_images([ad_image,drawed_bubbles],f'page_{i}_',f'_({bubbles_count})_')  
- 
+
+def find_four_squares(frame, analyses=False):
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    edged = cv2.Canny(blurred, 50, 150)
+    
+    contours, _ = cv2.findContours(edged, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    squares = []
+    
+    for contour in contours:
+        approx = cv2.approxPolyDP(contour, 0.04 * cv2.arcLength(contour, True), True)
+        if len(approx) == 4:
+            x, y, w, h = cv2.boundingRect(approx)
+            aspect_ratio = w / float(h)
+            if 0.9 <= aspect_ratio <= 1.1 and w < frame.shape[1] / 10:  # Check if the contour is approximately square and width is less than frame width/10
+                squares.append(approx)
+    
+    # Sort squares by area and select the largest 4
+    squares = sorted(squares, key=cv2.contourArea, reverse=True)[:4]
+    
+    if analyses:
+        analyzed_frame = frame.copy()
+        cv2.drawContours(analyzed_frame, squares, -1, (0, 255, 0), 2)
+        display_images([analyzed_frame], "Analyzed Squares", 30)
+    
+    squares = sorted(squares, key=lambda c: cv2.boundingRect(c)[1])  # Sort by y-axis
+    squares[-2:] = sorted(squares[-2:], key=lambda c: cv2.boundingRect(c)[0])  # Sort by x-axis
+
+    return squares
+
+def get_five_sub_images(image, four_points):
+        image = np.array(image)
+        sub_images = []
+        
+        b1_x, b1_y = map(int, four_points[0][0][0]) #point 1
+        b2_x, b2_y = map(int, four_points[1][0][0]) #point 2
+        
+        b4_x, b4_y = map(int, four_points[3][0][0])#point 3
+        square_width = cv2.boundingRect(four_points[0])[2]
+        lower_blocks_x =b2_x 
+        lower_blocks_y = int(b2_y + (square_width//1.5))
+        lower_blocks_x2 = b4_x + square_width
+        lower_blocks_y2 = b4_y 
+        lower_block_width =int( (lower_blocks_x2 - lower_blocks_x) // 4  )
+        upper_block_x1=lower_blocks_x
+        upper_block_x2=int(lower_block_width +(square_width//2))
+        upper_block_y1=b1_y+square_width
+        upper_block_y2=b2_y
+        cv2.rectangle(image, (upper_block_x1, upper_block_y1), (upper_block_x2, upper_block_y2), (0, 255, 0), 2)
+        sub_images.append(image[upper_block_y1:upper_block_y2, upper_block_x1:upper_block_x2])
+
+        for i in range(0,lower_block_width*4,lower_block_width):
+            x_start = lower_blocks_x + i
+            x_end = x_start + lower_block_width
+            cv2.rectangle(image, (x_start, lower_blocks_y), (x_end, lower_blocks_y2), (255, 0, ), 2)
+            sub_image = image[lower_blocks_y:lower_blocks_y2, x_start:x_end]
+            sub_images.append(sub_image)
+        # display_images([image], "Lower Blocks", 30)
+        
+        return sub_images
 
 
-def fix_missing_contours(ovalContours, expected_count, axis='x'):
-    # Determine sorting axis
-    axis_index = 0 if axis == 'x' else 1
-    # Sort contours by the specified axis
-    contours = sorted(ovalContours, key=lambda c: cv2.boundingRect(c)[axis_index])
-    
-    # Separate contours into groups based on axis distance
-    groups = []
-    current_group = [contours[0]]
-    for contour in contours[1:]:
-        if cv2.boundingRect(contour)[axis_index] - cv2.boundingRect(current_group[-1])[axis_index] <= 18:
-            current_group.append(contour)
-        else:
-            groups.append(current_group)
-            current_group = [contour]
-    groups.append(current_group)
-    
-    # Add missing contours to groups with less than expected_count
-    for group in groups:
-        while len(group) < expected_count:
-            # Duplicate the last contour in the group
-            last_contour = group[-1]
-            x, y, w, h = cv2.boundingRect(last_contour)
-            if axis == 'x':
-                new_contour = np.array([[[x, y + h + 1]]])  # Slightly offset the new contour
-            else:
-                new_contour = np.array([[[x + w + 1, y]]])  # Slightly offset the new contour
-            group.append(new_contour)
-    
-    # Flatten the list of groups back into a single list of contours
-    fixed_contours = [contour for group in groups for contour in group]
-    return fixed_contours
-    
-def find_student_answers(adaptiveFrame,frame_contours,i):
+def OrigingetFourPoints( canny):
+        """
+        Find four corner points of the bubble sheet in the image.
+        """
+        squareContours = []
+        contours, hie = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if len(contours) > 0:
+            fourPoints = []
+            i = 0
+            for cnt in contours:
+                (x, y), (MA, ma), angle = cv2.minAreaRect(cnt)
+                epsilon = 0.04 * cv2.arcLength(cnt, False)
+                approx = cv2.approxPolyDP(cnt, epsilon, True)
+                x, y, w, h = cv2.boundingRect(cnt)
+                aspect_ratio = float(w) / h
+                approx_Length=len(approx)
+                if approx_Length == 4 and aspect_ratio >= 0.9 and aspect_ratio <= 1.1:
+                    M = cv2.moments(cnt)
+                    cx = int(M['m10'] / M['m00'])
+                    cy = int(M['m01'] / M['m00'])
+                    fourPoints.append((cx, cy))
+                    squareContours.append(cnt)
+                    i += 1
+            return fourPoints, squareContours
+
+def OrigingetCannyFrame( frame):
+        """
+        Apply Canny edge detection to the input frame.
+        """
+        gray = cv2.cvtColor(frame, cv2.COLOR_RGBA2GRAY)
+        frame = cv2.Canny(gray, 127, 255)
+        return frame
+
+def OrigingetAdaptiveThresh(frame):
+    """
+    Apply adaptive thresholding to the input frame with enhanced effect.
+    """
+    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+    blurred = cv2.GaussianBlur(frame, (9, 9), 0)  # Increase blur effect
+    adaptiveFrame = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 51, 7)
+    return adaptiveFrame
+
+def OrigingetOvalContours( adaptiveFrame):
+        """
+        Detect and return contours of oval-shaped bubbles in the image.
+        """
+        contours, hierarchy = cv2.findContours(adaptiveFrame, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        ovalContours = []
+
+        for contour in contours:
+            approx = cv2.approxPolyDP(contour, 0, True)
+            ret = 0
+            x, y, w, h = cv2.boundingRect(contour)
+
+            # Eliminating non-oval shapes by approximation length and aspect ratio
+            if (len(approx) > 15 and w / h <= 1.2 and w / h >= 0.8):
+                mask = np.zeros(adaptiveFrame.shape, dtype="uint8")
+                cv2.drawContours(mask, [contour], -1, 255, -1)
+                ret = cv2.matchShapes(mask, contour, 1, 0.0)
+
+                if (ret < 1):
+                    ovalContours.append(contour)
+                    
+
+        return ovalContours
+
+
+def add_missing_bubbles(cnts, expected_count,sorted_slices):
+        cnts_length = len(cnts)
+        bubble_radius = cv2.boundingRect(cnts[0])[2]
+
+        if expected_count == 125:
+            for slice in sorted_slices:
+                y_first = cv2.boundingRect(slice[0])[1]
+                for c in slice:
+                    y = cv2.boundingRect(c)[1]
+                    diff = abs(y - y_first)
+                    if diff > bubble_radius:
+                        missing_bubble = np.copy(c)
+                        missing_bubble[:, :, 1] -= diff
+                        cnts.append(missing_bubble)
+                        return cnts
+        elif expected_count == 40:
+            for slice in sorted_slices:
+                x_first = cv2.boundingRect(slice[0])[0]
+                for c in slice:
+                    x = cv2.boundingRect(c)[0]
+                    diff = abs(x - x_first)
+                    if diff > bubble_radius:
+                        missing_bubble = np.copy(c)
+                        missing_bubble[:, :, 0] -= diff
+                        cnts.append(missing_bubble)
+                        return cnts
+        return "error"
+        
+def find_student_answers(img,adaptiveFrame,sub_image_counters,i):
         bubbles_rows = 25
         bubbles_columns = 5
         total_bubbles =125
+        ad=getAdaptiveThresh(img)
+        ad2=OrigingetAdaptiveThresh(img)
 
-        ovalContours = frame_contours
-        if len(ovalContours) < total_bubbles:
-            print(f'invalid answers of bubbles {len(ovalContours)}__ : img_{i} does not match the expected count. 40')
-            # ovalContours=fix_missing_counters(ovalContours,5)
-            ovalContours=fix_missing_contours(ovalContours, bubbles_columns, axis='Y')
+        cnts=[]
+        cnts1 = getCircularContours(ad)
+        cnts2 = getCircularContours(ad2)
+
+        cnts = cnts1 if len(cnts1) == 40 else cnts2
+            
+        cnts_lenth=len(cnts)
+        # display_images([draw_contours_on_frame(img,cnts)],scale=70)
+        
+        
+        while len(cnts) < total_bubbles:
+            print(f'invalid answers of bubbles {len(cnts)}__ : img_{i} does not match the expected count. 40')
+            # cnts=fix_missing_counters(cnts,5)
+            cnts = sorted(cnts, key=lambda c: cv2.boundingRect(c)[1])
+            sliced_contours = [cnts[i:i+bubbles_columns] for i in range(0, cnts_lenth, bubbles_columns)]
+            sorted_slices = [sorted(slice, key=lambda c: cv2.boundingRect(c)[0]) for slice in sliced_contours]
+            cnts = [contour for slice in sorted_slices for contour in slice]
+
+            cnts=add_missing_bubbles(cnts, 125,sorted_slices )
         # Convert the adaptive frame to color to display colored contours
-        # color_frame = cv2.cvtColor(adaptiveFrame.copy(), cv2.COLOR_GRAY2BGR)
         
-        # # Draw contours on the frame for visualization
-        # for contour in ovalContours:
-        #     cv2.drawContours(color_frame, [contour], -1, (0, 255, 0), 2)
-        
-        # # Display the frame with contours
-        # cv2.imshow(f'Contours_{i}', color_frame)
-        # cv2.waitKey(0)
-        # cv2.destroyAllWindows()
-
-        contours = sorted(ovalContours, key=lambda c: cv2.boundingRect(c)[0])
-        sliced_contours =   [contours[i:i+bubbles_columns] for i in range(0, len(contours), bubbles_columns)]
-        sorted_slices =     [sorted(slice, key=lambda c: cv2.boundingRect(c)[0]) for slice in sliced_contours]
-        contours =          [contour for slice in sorted_slices for contour in slice]
+        cnts = sorted(cnts, key=lambda c: cv2.boundingRect(c)[1])
+        sliced_contours = [cnts[i:i+bubbles_columns] for i in range(0, cnts_lenth, bubbles_columns)]
+        sorted_slices = [sorted(slice, key=lambda c: cv2.boundingRect(c)[0]) for slice in sliced_contours]
+        cnts = [contour for slice in sorted_slices for contour in slice]
 
         student_number = ''
         answers = []
-
+        answers_bubbles=[]
         for row in range(0, total_bubbles, bubbles_columns):
-            row_bubbles = contours[row:row+bubbles_columns]
+            row_bubbles = cnts[row:row+bubbles_columns]
             areas = [cv2.countNonZero(cv2.bitwise_and(adaptiveFrame, adaptiveFrame, mask=cv2.drawContours(np.zeros(adaptiveFrame.shape, dtype="uint8"), [bubble], -1, 255, -1))) for bubble in row_bubbles]
             chosen_bubble_index = areas.index(max(areas))
-
+            answers_bubbles.append(row_bubbles[chosen_bubble_index])
             student_number += str(chosen_bubble_index)
             answers.append(chosen_bubble_index)
 
-        return answers
+        return [answers,answers_bubbles]
 
 
-def find_student_number(adaptiveFrame,frame_contours,i):
-        bubbles_rows = 10
-        bubbles_columns = 4
-        total_bubbles =40
-        
-        ovalContours = frame_contours
-        if len(ovalContours) < total_bubbles:
-            print(f'invalid number of bubbles {len(ovalContours)}__ : img_{i} does not match the expected count. 40')
-            ovalContours=fix_missing_contours(ovalContours, bubbles_rows, axis='x')
+def find_student_number(img,adaptiveFrame, image_contours, i,analyse=False):
+    
+    fm = cv2.cvtColor(adaptiveFrame.copy(), cv2.COLOR_GRAY2BGR)
 
-        
-        contours = sorted(ovalContours, key=lambda c: cv2.boundingRect(c)[0])
-        
-        sliced_contours = [contours[i:i+bubbles_rows] for i in range(0, len(contours), bubbles_rows)]
-        
+    bubbles_rows = 10
+    bubbles_columns = 4
+    total_bubbles = 40
+    ad=getAdaptiveThresh(img)
+    ad2=OrigingetAdaptiveThresh(img)
 
+    cnts=[]
+    cnts1 = getCircularContours(ad)
+    cnts2 = getCircularContours(ad2)
 
-        sorted_slices = [sorted(slice, key=lambda c: cv2.boundingRect(c)[1]) for slice in sliced_contours]
-        contours = [contour for slice in sorted_slices for contour in slice]
+    cnts = cnts1 if len(cnts1) == 40 else cnts2
         
-        
-        
+    cnts_lenth=len(cnts)
+    # draw_contours_on_frame(img,cnts,display=True)
+    while len(cnts) < total_bubbles:
+        cnts = sorted(cnts, key=lambda c: cv2.boundingRect(c)[0])
+        sliced_cnts = [cnts[i:i + bubbles_rows] for i in range(0, len(cnts), bubbles_rows)]
+        sorted_slices = [sorted(slice, key=lambda c: cv2.boundingRect(c)[1]) for slice in sliced_cnts]
+        cnts = [contour for slice in sorted_slices for contour in slice]
 
-        student_number = ''
+        print(f'invalid number of bubbles {len(cnts)}__ : img_{i} does not match the expected count. 40')
+        cnts = add_missing_bubbles(cnts, 40,sorted_slices )
 
-        for col in range(0, total_bubbles, bubbles_rows):
+    contours = sorted(cnts, key=lambda c: cv2.boundingRect(c)[0])
+    sliced_contours = [contours[i:i + bubbles_rows] for i in range(0, len(contours), bubbles_rows)]
+    sorted_slices = [sorted(slice, key=lambda c: cv2.boundingRect(c)[1]) for slice in sliced_contours]
+    contours = [contour for slice in sorted_slices for contour in slice]
+
+    student_number = ''
+   
+    # for i,c in enumerate(contours):
+    #         print(f"COLUMN ({i}) ")
+    #         x, y, w, h = cv2.boundingRect(c)
+    #         ff=cv2.circle(fm.copy(),(int(x+w//2),int(y+h//2)),int(w//2),(0,0,255))
+    #         cv2.imshow(f'_{i}', ff)
+    #         cv2.waitKey(0)
+    #         cv2.destroyAllWindows()
+    chosen_bubbles=[]
+    for col in range(0, total_bubbles, bubbles_rows):
+        column_bubbles = contours[col:col + bubbles_rows]
+        areas = [cv2.countNonZero(cv2.bitwise_and(adaptiveFrame, adaptiveFrame, mask=cv2.drawContours(np.zeros(adaptiveFrame.shape, dtype="uint8"), [bubble], -1, 255, -1))) for bubble in column_bubbles]
+        chosen_bubble_index = areas.index(max(areas))
+        chosen_bubbles.append(column_bubbles[chosen_bubble_index])
+        if analyse:
             
-            column_bubbles = contours[col:col+bubbles_rows]
-            areas = [cv2.countNonZero(cv2.bitwise_and(adaptiveFrame, adaptiveFrame, mask=cv2.drawContours(np.zeros(adaptiveFrame.shape, dtype="uint8"), [bubble], -1, 255, -1))) for bubble in column_bubbles]
-            chosen_bubble_index = areas.index(max(areas))
-            student_number += str(chosen_bubble_index)
+            print(f"COLUMN ({col}) index={chosen_bubble_index}")
+            cv2.drawContours(fm, column_bubbles[chosen_bubble_index], -1, (0,0,255), 2)
+            cv2.imshow(f'_{chosen_bubble_index}', fm)
+            cv2.waitKey(0)
+        student_number += str(chosen_bubble_index)
 
-        return student_number
+    return student_number,chosen_bubbles
 
 def calculate_student_score(student_answers, answer_key):
+
     score = sum(1 for q_num, correct_ans in answer_key.items() if q_num < len(student_answers) and student_answers[q_num] == correct_ans)
     correct_indices = [q_num for q_num, correct_ans in answer_key.items() if q_num < len(student_answers) and student_answers[q_num] == correct_ans]
     return score, correct_indices
 
-def get_student_num_student_score(sub_images):
-    
-    student_answers = []
-    student_number = ''
-    # Process sub-images
-    for i, img in enumerate(sub_images):
-        ad_image=getAdaptiveThresh(img)
-        counters=getCircularContours(ad_image)
-        if i == 0:
-            student_number = find_student_number( ad_image,counters, i)
-            # print(f"student number : {student_number}")
-        else:
-            student_answers += find_student_answers(ad_image,counters, i)
-            # print(f"block answers {(i-1)*25}-{i*25}: {student_answers[(i-1)*25:i*25]}")
+# def get_student_num_student_score(sub_images):
+#     student_answers = []
+#     student_number = ''
+#     for i, img in enumerate(sub_images):
+#         ad_image=getAdaptiveThresh(img)
+#         counters=getCircularContours(ad_image)
+
+#         if i == 0:
+#             student_number = find_student_number(img,ad_image,counters, i)
+#             # print(f"student number : {student_number}")
+#         else:
+#             student_answers += find_student_answers(ad_image,counters, i)
+#             # print(f"block answers {(i-1)*25}-{i*25}: {student_answers[(i-1)*25:i*25]}")
             
-    return student_number,student_answers
+#     return student_number,student_answers
+
+def get_pdf_path():
+    root = tk.Tk()
+    root.withdraw()  # Hide the root window
+    file_path = filedialog.askopenfilename(filetypes=[("PDF files", "*.pdf")])
+    return file_path
+
+
+
+def display_student_results(student_number, score, root):
+    result_window = tk.Toplevel(root)
+    result_window.title("Student Results")
+
+    # Center the window on the screen
+    window_width = 300
+    window_height = 200
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+    position_top = int(screen_height / 2 - window_height / 2)
+    position_right = int(screen_width / 2 - window_width / 2)
+    result_window.geometry(f'{window_width}x{window_height}+{position_right}+{position_top}')
+
+    # Set background color
+    result_window.configure(bg='lightblue')
+
+    # Create and pack the labels and button with colors
+    tk.Label(result_window, text=f"Student Number: {student_number}", font=("Helvetica", 16), bg='lightblue', fg='darkblue').pack(pady=10)
+    tk.Label(result_window, text=f"Score: {score}", font=("Helvetica", 16), bg='lightblue', fg='darkblue').pack(pady=10)
+    tk.Button(result_window, text="OK", font=("Helvetica", 14), bg='darkblue', fg='white', command=result_window.destroy).pack(pady=10)
+
 
 def get_answers_from_xlsx(path):
     data = pd.read_excel(path)
@@ -394,10 +554,11 @@ def get_answers_from_xlsx(path):
                 q=row[0]
                 answer_key[i] = answer_mapping.get(row[1], None)  # Handle invalid answers gracefully
     return answer_key
-def write_results_to_csv(student_number, score, correct_indices):
+def write_results_to_csv(student_number, score, correct_indices,student_answers):
         # Define file path
         file_path = 'student_results.csv'
-
+        answer_mapping_reverse = {0: 'A', 1: 'B', 2: 'C', 3: 'D', 4: 'E'}
+        student_answers_mapped = [answer_mapping_reverse.get(ans, 'N/A') for ans in student_answers]
         # Load existing DataFrame or create a new one
         if os.path.exists(file_path):
             results_df = pd.read_csv(file_path)
@@ -405,7 +566,7 @@ def write_results_to_csv(student_number, score, correct_indices):
             results_df = pd.DataFrame(columns=['Student Number'] + ['Score from 100'] + [f'Q{i+1}' for i in range(100)])
 
         # Create a new row for the student
-        new_row = pd.DataFrame([[student_number] + [score] + ['True' if i in correct_indices else 'False' for i in range(100)]], columns=results_df.columns)
+        new_row = pd.DataFrame([[student_number] + [score] + student_answers_mapped], columns=results_df.columns)
         student_number = str(student_number)
         all_students_numbers=results_df['Student Number'].astype(str).values
         
@@ -427,21 +588,57 @@ if __name__ == "__main__":
             score=0
 
             pdf_path = get_pdf_path()
-            pdf_images = pdf_to_images(pdf_path)
+            pdf_images,output_folder = pdf_to_images(pdf_path)
             pdf_images=resize_images(pdf_images,1200)
-            # pdf_images=[cv2.imread("1.jpg")]
-
-
+            # pdf_images=[cv2.imread("Scan1.jpg")]
+            if os.path.exists(output_folder):
+                shutil.rmtree(output_folder)
+            # four_points=find_four_squares(pdf_images[0],analyses=True)
+            
             root = tk.Tk()
             root.withdraw()  # Hide the root window
 
-            for i, image in enumerate(pdf_images):
-                sub_images = get_sub_images(image)
-                student_number, student_answers = get_student_num_student_score(sub_images)
+            for pp, image in enumerate(pdf_images):
+                student_answers = []
+                student_number = ''
+                canny=OrigingetCannyFrame(pdf_images[0])
+                adaptive=OrigingetCannyFrame(pdf_images[0])
+                # display_images([canny],'',50)
+                # display_images([adaptive],'',50)
+                four_points=find_four_squares(image,analyses=False)
+                sub_images =get_five_sub_images(image,four_points)
+
+                for i, img in enumerate(sub_images):
+                    # ad_image=getAdaptiveThresh(img)
+                    adaptive=getAdaptiveThresh(img)
+                    # display_images([adaptive],'ORiginal',100)
+                    # adaptive=getAdaptiveThresh(img)
+                    # display_images([adaptive],'mine',100)
+                    counters=getCircularContours(adaptive,img)
+                    n_contours=len(counters)
+                    # draw_contours_on_frame(img.copy(),counters,color='b',display=False)
+                    # save_images([img],'results',f"img_{pp}")
+
+                    if i == 0:
+                        student_number,chosen_bubbles = find_student_number(img,adaptive,counters, i,analyse=False)
+                        print(f"student number : {student_number}")
+                        # draw_contours_on_frame(img,chosen_bubbles,color='r',display=True)
+                    
+                        
+                    else:
+                        
+                        block_answers,chosen_bubbles_ans=find_student_answers(img,adaptive,counters, i)
+                        student_answers += block_answers
+                        print(f"block answers {(i-1)*25}-{i*25}: {student_answers[(i-1)*25:i*25]}")
+                        # display_images([draw_contours_on_frame(img,chosen_bubbles_ans)],scale=75)
+
+                        
+                
                 score, correct_indices = calculate_student_score(student_answers, ANSWER_KEYS)
-                write_results_to_csv(student_number, score, correct_indices)
+                write_results_to_csv(student_number, score, correct_indices,student_answers)
                 print(f"Student ( {student_number} ) score : {score}, correct_answers: {correct_indices}")
 
-                display_student_results(student_number, score, root)
+                # display_student_results(student_number, score, root)
+
 
             root.mainloop()

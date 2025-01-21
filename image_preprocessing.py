@@ -7,7 +7,7 @@ import numpy as np
 
 def pdf_to_images(pdf_path):
     pdf_name = os.path.splitext(os.path.basename(pdf_path))[0]
-    output_folder = os.path.join(os.path.dirname(pdf_path), f"{pdf_name}_images")
+    output_folder = os.path.join(os.path.dirname(pdf_path), f"{pdf_name}_students")
     os.makedirs(output_folder, exist_ok=True)
 
     pdf_document = fitz.open(pdf_path)
@@ -28,7 +28,7 @@ def pdf_to_images(pdf_path):
         
     # print(f"Images saved in: {output_folder}")  
 
-    return images
+    return images,output_folder
 
 def resize_images(images, width=1200):
     resized_images = []

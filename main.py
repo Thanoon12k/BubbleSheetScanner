@@ -7,6 +7,7 @@ from GUI import get_pdf_path, display_student_results
 from image_preprocessing import *
 import tkinter as tk
 from tkinter import filedialog
+import shutil
 
 
 def calculate_student_score(student_answers, answer_key):
@@ -73,10 +74,11 @@ if __name__ == "__main__":
             score=0
 
             pdf_path = get_pdf_path()
-            pdf_images = pdf_to_images(pdf_path)
+            pdf_images,output_folder = pdf_to_images(pdf_path)
             pdf_images=resize_images(pdf_images,1200)
             # pdf_images=[cv2.imread("Scan1.jpg")]
-            
+            if os.path.exists(output_folder):
+                shutil.rmtree(output_folder)
             # four_points=find_four_squares(pdf_images[0],analyses=True)
             
             root = tk.Tk()
