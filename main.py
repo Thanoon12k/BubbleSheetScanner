@@ -124,4 +124,5 @@ if __name__ == "__main__":
 
                 # display_student_results(student_number, score, root)
 
-            gitroot.mainloop()
+
+            root.mainloop()
