@@ -5,7 +5,7 @@ import tkinter as tk
 from tkinter import filedialog
 import shutil
 
-import fitz  # PyMuPDF
+import fitz  
 from PIL import Image
 import numpy as np
 
@@ -638,7 +638,7 @@ if __name__ == "__main__":
                 write_results_to_csv(student_number, score, correct_indices,student_answers)
                 print(f"Student ( {student_number} ) score : {score}, correct_answers: {correct_indices}")
 
-                # display_student_results(student_number, score, root)
+                display_student_results(student_number, score, root)
 
 
             root.mainloop()
