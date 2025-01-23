@@ -159,9 +159,8 @@ def draw_rect_on_frame(frame, axis,color='r',display=False,scale=100):
         return frame
 
 def draw_contours_on_frame(frame, contours,color='r',display=False,scale=100):
-    frame=frame.copy()
     if len(frame.shape) == 2:  # Grayscale frames have 2 dimensions
-            frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+            frame = cv2.cvtColor(frame.copy(), cv2.COLOR_GRAY2BGR)
     if scale != 100:
             width = int(frame.shape[1] * scale / 100)
             height = int(frame.shape[0] * scale / 100)
