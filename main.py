@@ -76,8 +76,8 @@ if __name__ == "__main__":
             # pdf_path = get_pdf_path()
             # pdf_images,output_folder = pdf_to_images(pdf_path)
             # pdf_images=[cv2.imread('20_students/page_1.png'),cv2.imread('20_students/page_2.png'),cv2.imread('20_students/page_3.png'),cv2.imread('20_students/page_4.png'),cv2.imread('20_students/page_5.png'),cv2.imread('20_students/page_6.png'),cv2.imread('20_students/page_7.png'),cv2.imread('20_students/page_8.png'),cv2.imread('20_students/page_9.png'),cv2.imread('20_students/page_10.png'),cv2.imread('20_students/page_11.png'),cv2.imread('20_students/page_12.png'),cv2.imread('20_students/page_13.png'),cv2.imread('20_students/page_14.png'),cv2.imread('20_students/page_15.png'),cv2.imread('20_students/page_16.png'),cv2.imread('20_students/page_17.png'),cv2.imread('20_students/page_18.png'),cv2.imread('20_students/page_19.png'),cv2.imread('20_students/page_20.png'),cv2.imread('20_students/page_21.png'),cv2.imread('20_students/page_22.png')]
-            pdf_images=[cv2.imread('20_students/page_8.png')]
-            # pdf_images=[cv2.imread('blank.png')]
+            # pdf_images=[cv2.imread('20_students/page_8.png')]
+            pdf_images=[cv2.imread('blank.png')]
             # pdf_images=resize_images(pdf_images,1200)
             
 
@@ -95,25 +95,38 @@ if __name__ == "__main__":
                         cnts_length=len(cnts)
                         min_ratio-=0.01
                         max_ratio+=0.01
-                number_cnts=get_number_bubbles(adaptive_frame,cnts)
-                if len(number_cnts)<40:
-                    print(f'image  [{i+1}]    - from 40  found {len(number_cnts)}  ')
-                    number_cnts=fix_missing_num_bubbles(adaptive_frame,number_cnts)
-                print(f'fix numbers image  [{i+1}]    - from 40  found {len(number_cnts)}  ')
-                for c in number_cnts:
-                                  draw_contours_on_frame(adaptive_frame,[c],display=True,add_colors=True,color='r')
+                
+                std_num_cnts     =get_student_num_bubbles(adaptive_frame,cnts)
+                if len(std_num_cnts)<40:
+                    print(f'image  [{i+1}]    - from 40  found {len(std_num_cnts)}  ')
+                    std_num_cnts=fix_missing_num_bubbles(adaptive_frame,std_num_cnts)
+
+                answers_blocks=get_answers_blocks_bubbles(page,adaptive_frame,cnts)
+                new_blocks=[]
+                for blk in answers_blocks:
+                        bb=fix_missing_block_bubbles(adaptive_frame,blk)
+                        new_blocks.append(bb)
+                
+                                # Flatten all blocks into a single list
+                answers_cnts = [bubble for block in new_blocks for bubble in block] + std_num_cnts
+                all_bubbles = answers_cnts+ std_num_cnts
+                print(f'fix numbers image  [{i+1}]    - from {len(std_num_cnts)} - {len(answers_cnts)} = 580  found {len(all_bubbles)}  ')
+
+                display_images([draw_contours_on_frame(adaptive_frame,all_bubbles,color='r')],"adaptive page",scale=37)
+
+                # print(f'fix numbers image  [{i+1}]    - from 40  found {len(std_num_cnts)}  ')
+                # for c in std_num_cnts:
+                #                   draw_contours_on_frame(adaptive_frame,[c],display=True,color='r')
   
-                draw_contours_on_frame(adaptive_frame,number_cnts,display=True,add_colors=True,color='g')
    
-                # print(len(number_cnts))
+                # print(len(std_num_cnts))
                 # aligned_cnts=remove_not_aligned_counters(adaptive_frame,cnts)
-                print(f'image  [{i+1}]    - from 40  found {len(number_cnts)}  min_ratio={min_ratio},max_ratio={max_ratio}')
-                # page=draw_contours_on_frame(adaptive_frame,cnts,add_colors=True)
+                # print(f'image  [{i+1}]    - from 40  found {len(std_num_cnts)}  min_ratio={min_ratio},max_ratio={max_ratio}')
+                # page=draw_contours_on_frame(adaptive_frame,cnts)
                 # page=draw_rect_top_right_quarter(page)
                 
                 # save_images   ([page],'22',f"[{i+1}]")
                 # display_images([page],"adaptive page",scale=50)
-                # display_images([draw_contours_on_frame(page,aligned_cnts,color='b')],"adaptive page",scale=50)
                 
                 # student_number,choosen_bubbles_number = find_student_number(img,adaptive,counters, i,analyse=False)
                 # print(f"student number : {student_number}")
@@ -126,4 +139,4 @@ if __name__ == "__main__":
 
                 # display_student_results(student_number, score, root)
                 
-            print(f"found results for  {len(pdf_images)} students succsessfully !!")
+            # print(f"found results for  {len(pdf_images)} students succsessfully !!")

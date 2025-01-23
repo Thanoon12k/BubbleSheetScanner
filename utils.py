@@ -30,37 +30,232 @@ def getBubblesContours(img, adaptiveFrame, expected_count=540,min_ratio=0,max_ra
             filtered_contours.append(cnt)
     contours = filtered_contours 
     return contours
-def have_two_twins(fm,cntr1,cntr2):
-        x1, y1, w,_ = cv2.boundingRect(cntr1)
-        x2, y2, _,_ = cv2.boundingRect(cntr2)
-        
-        max_normlized_value=w
-        twiny=False
-        if abs(x1-x2)<max_normlized_value: twiny=True
-        if abs(y1-y2)<max_normlized_value:twiny=True
-        print(f"twiny: {twiny}")
-        if twiny==False:
-            print('false twiny')
-            display_images([draw_contours_on_frame(fm,[cntr1,cntr2],color='b',add_colors=True)],scale=50)
-        return twiny
 
 
+def add_miss_bubbles_to_row(fm,ref,row,normlize_value):
+    ref = sorted(ref, key=lambda c: cv2.boundingRect(c)[0])
+    row = sorted(row, key=lambda c: cv2.boundingRect(c)[0])
+    filtered_row = []
+    added_buubles=[]
+    first_bubble_y = sorted(row, key=lambda c: cv2.boundingRect(c)[1])
+    first_bubble_y = cv2.boundingRect(first_bubble_y[0])[1]
+    for c in row:
+        y = cv2.boundingRect(c)[1]
+        if abs(y - first_bubble_y) < normlize_value:
+            filtered_row.append(c)
+    row = filtered_row
+    # draw_contours_on_frame(fm,ref,color='g',display=True)
+    # draw_contours_on_frame(fm,row,color='b',display=True)
+    while len(row)<4:
+        for i in range(0,3):
+            equal_X=abs(cv2.boundingRect(ref[i])[0]-cv2.boundingRect(row[i])[0]) <normlize_value
+            if equal_X:
+                print('equal: ',i)
+            else:
+                print('not equal: ',i)
+                new_bubble = ref[i].copy()
+                for point in new_bubble:
+                    point[0][1] += int(normlize_value * 2.5)        
+                row.insert(i, new_bubble)
+                added_buubles.append(new_bubble)
+                # draw_contours_on_frame(fm,row,color='g',display=True)
+                break
+
+    
+
+    return added_buubles
+
+def find_ref_row(fm, cnts, num_columns):
+    cnts = sorted(cnts, key=lambda c: cv2.boundingRect(c)[1])
+    _, _, normlized_value, _ = cv2.boundingRect(cnts[0])
+    # display_images([draw_contours_on_frame(fm, cnts, color='g')], scale=70)
+    slice = []
+    y_first = cv2.boundingRect(cnts[0])[1]
+    for c in cnts:
+        y = cv2.boundingRect(c)[1]
+        if y_first - normlized_value < y < y_first + normlized_value:
+            slice.append(c)
+        else:
+            y_first = y
+            # display_images([draw_contours_on_frame(fm, slice, color='g')], scale=33)
+            if len(slice) == num_columns:
+                return slice
+            slice = [c]
+
+    return None
+
+    
 
 
+    
+def add_answers_miss_bubbles_to_row(fm, row,ref, normlize_value,num_columns):
+    _, _, w, _ = cv2.boundingRect(row[0])
+    normlize_value = w // 2
+    # Sort row based on the x-coordinate of the bounding rectangles
+    added_bubbles=[]
+    row = sorted(row, key=lambda c: cv2.boundingRect(c)[0])
+    
+    ref = sorted(ref, key=lambda c: cv2.boundingRect(c)[0])
+    
+    # Determine the y-coordinate of the first bubble
+    first_bubble_y = sorted(row, key=lambda c: cv2.boundingRect(c)[1])
+    first_bubble_y = cv2.boundingRect(first_bubble_y[0])[1]
 
-def remove_not_aligned_counters(fm,counters):
-    aligned_contours=[]
-    counters = sorted(counters, key=lambda c: cv2.boundingRect(c)[1])
+    row = [c for c in row if abs(cv2.boundingRect(c)[1] - first_bubble_y) < normlize_value]
+    miss_row=[c for c in row if abs(cv2.boundingRect(c)[1] - first_bubble_y) < normlize_value]
 
-    for i in range(0,len(counters)-1,2):
-        if is_twin(fm,counters[i],counters[i+1]):
-            aligned_contours.append(counters[i])
-            aligned_contours.append(counters[i+1])
+    while len(row)<num_columns:
+        for i in range(0,num_columns-1):
+            equal_X=abs(cv2.boundingRect(ref[i])[0]-cv2.boundingRect(row[i])[0]) <normlize_value
             
-    return aligned_contours
+            if not equal_X:
+                print(f'missing bubble [{i+1}] ')
+                new_bubble = ref[i].copy()
+                y_offset = cv2.boundingRect(row[0])[1] - cv2.boundingRect(new_bubble)[1]
+                new_bubble[:, :, 1] += y_offset
+                added_bubbles.append(new_bubble)
+                row.insert(i, new_bubble)
 
 
-def get_number_bubbles(bw_img,cnts:list)->list:
+
+                
+                # draw_contours_on_frame(fm,row,color='g',display=True)
+                break
+
+            
+    # display_images([draw_contours_on_frame(fm, miss_row, color='b')], scale=33)
+    # display_images([draw_contours_on_frame(fm, added_bubbles, color='r')], scale=33)
+    return added_bubbles
+    # display_images([draw_contours_on_frame(fm,row)],scale=70)
+  
+    
+
+def fix_missing_num_bubbles(bw_img, cnts: list) -> list:
+    Refererece_row = []
+    cnts = sorted(cnts, key=lambda c: cv2.boundingRect(c)[1])
+    _, _, w, _ = cv2.boundingRect(cnts[0])
+    normlize_value = w // 2
+
+    while len(cnts) < 40:
+        for i in range(0, len(cnts) - 4, 4):
+            contours_row = sorted(cnts[i:i + 4], key=lambda c: cv2.boundingRect(c)[1])
+            y_values = [cv2.boundingRect(c)[1] for c in contours_row]
+            is_not_good_row = max(y_values) - min(y_values) > normlize_value
+
+            # draw_contours_on_frame(bw_img, [cnts[i], cnts[i + 1], cnts[i + 2], cnts[i + 3]], display=True,)
+            
+            if not is_not_good_row and Refererece_row == []:Refererece_row = contours_row
+            
+            if is_not_good_row:
+                miss_bubbles = add_miss_bubbles_to_row(bw_img, Refererece_row, contours_row, normlize_value)
+                cnts.extend(miss_bubbles)
+                i = 0
+                break
+
+        print(f"i->{i} from 40 new_rows= {len(cnts)}")
+    cnts=sorted(cnts, key=lambda c: cv2.boundingRect(c)[1])    
+    return cnts
+
+
+def fix_missing_block_bubbles(bw_img, cnts: list) -> list:
+    
+    ref_row=find_ref_row(bw_img,cnts,5)
+    cnts = sorted(cnts, key=lambda c: cv2.boundingRect(c)[1])
+    _, _, w, _ = cv2.boundingRect(cnts[0])
+    normlize_value = w // 2
+
+    while len(cnts) < 125:
+        for i in range(0, len(cnts) - 5, 5):
+            contours_row = sorted(cnts[i:i + 5], key=lambda c: cv2.boundingRect(c)[1])
+            y_values = [cv2.boundingRect(c)[1] for c in contours_row]
+            
+            is_not_good_row = max(y_values) - min(y_values) > normlize_value
+            
+            if is_not_good_row:
+                miss_bubbles = add_answers_miss_bubbles_to_row(bw_img,contours_row,ref_row, normlize_value,5)
+                cnts.extend(miss_bubbles)
+                cnts=sorted(cnts, key=lambda c: cv2.boundingRect(c)[1]) 
+                i = 0
+                break
+
+        print(f"i->{i} from 40 new_rows= {len(cnts)}")
+    
+    # display_images([draw_contours_on_frame(bw_img,cnts,color='g')],scale=33)
+    return cnts
+
+
+def remove_not_aligned_bubbls(cnts: list) -> list:
+    filterd_cnts=[]
+    return cnts
+def get_answers_blocks_bubbles(pg,fm,cnts):
+
+    cnts = sorted(cnts, key=lambda c: cv2.boundingRect(c)[1])
+    # display_images([draw_contours_on_frame(fm,cnts,color='b')],scale=33)
+
+    cnts = cnts[40:] 
+    # display_images([draw_contours_on_frame(fm,cnts)],scale=50)
+    bubble_columns=5
+    bubbles_rows=25
+    # Find the smallest x coordinate
+    radious=int(cv2.boundingRect(cnts[0])[2] //2)
+    # Get smallest and largest x, y coordinates (assuming 'cnts' is a list of contours)
+    x1 = min(cv2.boundingRect(c)[0] for c in cnts)-radious
+    y1 = min(cv2.boundingRect(c)[1] for c in cnts)-radious
+    x2 = max(cv2.boundingRect(c)[0] + cv2.boundingRect(c)[2] for c in cnts)+radious
+    y2 = max(cv2.boundingRect(c)[1] + cv2.boundingRect(c)[3] for c in cnts)+radious
+    width = x2 - x1
+    gap = 5*radious
+    rect_width = (width-(gap*3)) // 4
+    rects = []
+    for i in range(5):
+        start_x = x1 + (i * (rect_width + gap))
+        rect = [start_x, y1, start_x + rect_width, y2]
+        rects.append(rect)
+        fm = draw_rect_on_frame(fm, rect, 2)
+    blocks_cnts = [[] for _ in range(4)]
+    for cnt in cnts:
+        x, y, _, _ = cv2.boundingRect(cnt)
+        for i, rect in enumerate(rects):
+            min_x, min_y, max_x, max_y = rect
+            if min_x <= x <= max_x and min_y <= y <= max_y :
+                blocks_cnts[i].append(cnt)    
+    # display_images([fm], scale=44)
+    # display_images([draw_contours_on_frame(fm,blocks_cnts[0],color='r')],scale=35)
+    # display_images([draw_contours_on_frame(fm,blocks_cnts[1],color='g')],scale=35)
+    # display_images([draw_contours_on_frame(fm,blocks_cnts[2],color='r')],scale=35)
+    # display_images([draw_contours_on_frame(fm,blocks_cnts[3],color='b')],scale=35)
+    
+    return blocks_cnts
+    # gap = 5*radious
+    # rect_width = (width-(gap*3)) // 4
+    # rects = []
+    # blocks_cnts = [[] for _ in range(4)]
+    # for i in range(4):
+    #     start_x = x1 + (i * (rect_width + gap))
+    #     end_x = start_x + rect_width
+    #     for cnt in cnts:
+    #         x, _, _, _ = cv2.boundingRect(cnt)
+    #         if start_x <= x <= end_x:
+    #             blocks_cnts[i].append(cnt)
+        
+    draw_contours_on_frame(fm,blocks_cnts[3],display=True,scale=30) 
+    # cv2.rectangle(pg, (min_x, min_y), (max_x, max_y), (0, 255, 0), 2)
+
+    # Display the image with the rectangle
+    # cv2.imshow("Image with Rectangle", pg)
+    # cv2.waitKey(0)
+    # display_images([draw_contours_on_frame(fm,first_xs)],scale=25,title='fx')
+    # display_images([draw_contours_on_frame(fm,first_ys)],scale=25,title='fy')
+    # display_images([draw_contours_on_frame(fm,last_xs)],scale=25,title='lx')
+    # display_images([draw_contours_on_frame(fm,last_ys)],scale=25,title='ly')
+    # x_first, _, _,_ = cv2.boundingRect(first_four_cnts[0])
+    x_last, _, w, _ = cv2.boundingRect(first_four_cnts[-1])
+
+    return []
+
+
+
+def get_student_num_bubbles(bw_img,cnts:list)->list:
     number_cnts=[]
     cnts = sorted(cnts, key=lambda c: cv2.boundingRect(c)[1])
     cnts=cnts[:40]
@@ -82,8 +277,8 @@ def get_number_bubbles(bw_img,cnts:list)->list:
 
     
 
-    # display_images([draw_contours_on_frame(bw_img,[first_ten_cnts[0]],add_colors=True)],scale=50)
-    # display_images([draw_contours_on_frame(bw_img,[first_ten_cnts[-1]],add_colors=True)],scale=50)
+    # display_images([draw_contours_on_frame(bw_img,[first_ten_cnts[0]])],scale=50)
+    # display_images([draw_contours_on_frame(bw_img,[first_ten_cnts[-1]])],scale=50)
      # remove our of y
     for cntr in cnts:
         _,y,_,_=cv2.boundingRect(cntr)
@@ -97,82 +292,21 @@ def get_number_bubbles(bw_img,cnts:list)->list:
     #         number_cnts.append(cntr)
     # print(f'xfirst: {x_first}      xlast: {x_last}        yfirst: {y_first}  ylast: {y_last}  num_contours: {len(number_cnts)}')
     # Print the coordinates on the left top corner of the image
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    text = f'x_first: {x_first}, x_last: {x_last}, y_first: {y_first}, y_last: {y_last}, num_contours: {len(number_cnts)}'
-    cv2.putText(bw_img, text, (10, 30), font, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
-    draw_contours_on_frame(bw_img,number_cnts,display=True,add_colors=True)
+    # font = cv2.FONT_HERSHEY_SIMPLEX
+    # text = f'x_first: {x_first}, x_last: {x_last}, y_first: {y_first}, y_last: {y_last}, num_contours: {len(number_cnts)}'
+    # cv2.putText(bw_img, text, (10, 30), font, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+    # draw_contours_on_frame(bw_img,number_cnts,display=True)
     
     return number_cnts
 
-
-
-def add_miss_bubbles_to_row(fm,ref,row,normlize_value):
-    ref = sorted(ref, key=lambda c: cv2.boundingRect(c)[0])
-    row = sorted(row, key=lambda c: cv2.boundingRect(c)[0])
-    filtered_row = []
-    added_buubles=[]
-    first_bubble_y = sorted(row, key=lambda c: cv2.boundingRect(c)[1])
-    first_bubble_y = cv2.boundingRect(first_bubble_y[0])[1]
-    for c in row:
-        y = cv2.boundingRect(c)[1]
-        if abs(y - first_bubble_y) < normlize_value:
-            filtered_row.append(c)
-    row = filtered_row
-    # draw_contours_on_frame(fm,ref,color='g',display=True,add_colors=True)
-    # draw_contours_on_frame(fm,row,color='b',display=True,add_colors=True)
-    while len(row)<4:
-        for i in range(0,3):
-            equal_X=abs(cv2.boundingRect(ref[i])[0]-cv2.boundingRect(row[i])[0]) <normlize_value
-            if equal_X:
-                print('equal: ',i)
-            else:
-                print('not equal: ',i)
-                new_bubble = ref[i].copy()
-                for point in new_bubble:
-                    point[0][1] += int(normlize_value * 2.5)        
-                row.insert(i, new_bubble)
-                added_buubles.append(new_bubble)
-                draw_contours_on_frame(fm,row,color='g',display=True,add_colors=True)
-                break
-
-    
-
-    return added_buubles
-
-def fix_missing_num_bubbles(bw_img, cnts: list) -> list:
-    Refererece_row = []
-    cnts = sorted(cnts, key=lambda c: cv2.boundingRect(c)[1])
-    _, _, w, _ = cv2.boundingRect(cnts[0])
-    normlize_value = w // 2
-
-    while len(cnts) < 40:
-        for i in range(0, len(cnts) - 4, 4):
-            contours_row = sorted(cnts[i:i + 4], key=lambda c: cv2.boundingRect(c)[1])
-            y_values = [cv2.boundingRect(c)[1] for c in contours_row]
-            is_not_good_row = max(y_values) - min(y_values) > normlize_value
-
-            draw_contours_on_frame(bw_img, [cnts[i], cnts[i + 1], cnts[i + 2], cnts[i + 3]], display=True, add_colors=True)
-            
-            if not is_not_good_row and Refererece_row == []:Refererece_row = contours_row
-            
-            if is_not_good_row:
-                miss_bubbles = add_miss_bubbles_to_row(bw_img, Refererece_row, contours_row, normlize_value)
-                cnts.extend(miss_bubbles)
-                i = 0
-                break
-
-        print(f"i->{i} from 40 new_rows= {len(cnts)}")
-    cnts=sorted(cnts, key=lambda c: cv2.boundingRect(c)[1])    
-    return cnts
-
-# Make sure to call the function with actual data, e.g.,
-# fixed_rows = fix_missing_num_bubbles(bw_img, cnts)
-
-
-
-def remove_not_aligned_bubbls(cnts: list) -> list:
-    filterd_cnts=[]
-    return cnts
+def draw_rect_on_frame(fm, axis=[],thikness=4): #axis=[x1,x2,x3,x4]
+    fm=fm.copy()
+    if len(fm.shape) == 2:  # Grayscale frames have 2 dimensions
+                fm = cv2.cvtColor(fm, cv2.COLOR_GRAY2BGR)
+    if len(axis) == 4:
+        x1, y1, x2, y2 = axis
+        cv2.rectangle(fm, (x1, y1), (x2, y2), (0, 255, 0), thikness)
+    return fm
 
 def draw_rect_top_right_quarter(page):
     h, w, _ = page.shape
