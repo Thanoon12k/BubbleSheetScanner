@@ -1,5 +1,6 @@
 from onefile import *
 import cv2
+
 def getBubblesContours(img, adaptiveFrame, expected_count=540,min_ratio=0,max_ratio=0):
     contours, hierarchy = cv2.findContours(adaptiveFrame, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     # min_ratio = 0.99
@@ -103,41 +104,70 @@ def get_number_bubbles(bw_img,cnts:list)->list:
     
     return number_cnts
 
-def fix_missing_num_bubbles(bw_img,cnts:list)->list:
 
+
+def add_miss_bubbles_to_row(fm,ref,row,normlize_value):
+    ref = sorted(ref, key=lambda c: cv2.boundingRect(c)[0])
+    row = sorted(row, key=lambda c: cv2.boundingRect(c)[0])
+    filtered_row = []
+    added_buubles=[]
+    first_bubble_y = sorted(row, key=lambda c: cv2.boundingRect(c)[1])
+    first_bubble_y = cv2.boundingRect(first_bubble_y[0])[1]
+    for c in row:
+        y = cv2.boundingRect(c)[1]
+        if abs(y - first_bubble_y) < normlize_value:
+            filtered_row.append(c)
+    row = filtered_row
+    # draw_contours_on_frame(fm,ref,color='g',display=True,add_colors=True)
+    # draw_contours_on_frame(fm,row,color='b',display=True,add_colors=True)
+    while len(row)<4:
+        for i in range(0,3):
+            equal_X=abs(cv2.boundingRect(ref[i])[0]-cv2.boundingRect(row[i])[0]) <normlize_value
+            if equal_X:
+                print('equal: ',i)
+            else:
+                print('not equal: ',i)
+                new_bubble = ref[i].copy()
+                for point in new_bubble:
+                    point[0][1] += int(normlize_value * 2.5)        
+                row.insert(i, new_bubble)
+                added_buubles.append(new_bubble)
+                draw_contours_on_frame(fm,row,color='g',display=True,add_colors=True)
+                break
+
+    
+
+    return added_buubles
+
+def fix_missing_num_bubbles(bw_img, cnts: list) -> list:
+    Refererece_row = []
     cnts = sorted(cnts, key=lambda c: cv2.boundingRect(c)[1])
-    _,_,w,_=cv2.boundingRect(cnts[0])
-    normlize_value=w//2
-    for i in range(0,len(cnts)-4,4):
-        contours_row = sorted(cnts[i:i+4], key=lambda c: cv2.boundingRect(c)[1])
-        
-        y_values = [cv2.boundingRect(c)[1] for c in contours_row]
-        y_min, y_max = min(y_values), max(y_values)
+    _, _, w, _ = cv2.boundingRect(cnts[0])
+    normlize_value = w // 2
 
-        not_good_row = y_max - y_min > normlize_value
+    while len(cnts) < 40:
+        for i in range(0, len(cnts) - 4, 4):
+            contours_row = sorted(cnts[i:i + 4], key=lambda c: cv2.boundingRect(c)[1])
+            y_values = [cv2.boundingRect(c)[1] for c in contours_row]
+            is_not_good_row = max(y_values) - min(y_values) > normlize_value
 
-        draw_contours_on_frame(bw_img,[cnts[i],cnts[i+1],cnts[i+2],cnts[i+3]],display=True,add_colors=True)
-        
-        if not_good_row:
-            good_row_cnts=[]
-            y_first=cv2.boundingRect(contours_row[0])[1]
-            for c in contours_row:
-                y=cv2.boundingRect(c)[1]
-                is_in_same_row=(y_first - normlize_value <= y <= y_first + normlize_value)
-                if  is_in_same_row:
-                    good_row_cnts.append(c)
-                else:
-                    pass
-            good_row_cnts=[cv2.boundingRect(c)[0] for c in good_row_cnts]
+            draw_contours_on_frame(bw_img, [cnts[i], cnts[i + 1], cnts[i + 2], cnts[i + 3]], display=True, add_colors=True)
             
-            draw_contours_on_frame(bw_img,good_row_cnts,color='b',display=True,add_colors=True)
-                    
-                    
-           
+            if not is_not_good_row and Refererece_row == []:Refererece_row = contours_row
             
+            if is_not_good_row:
+                miss_bubbles = add_miss_bubbles_to_row(bw_img, Refererece_row, contours_row, normlize_value)
+                cnts.extend(miss_bubbles)
+                i = 0
+                break
 
+        print(f"i->{i} from 40 new_rows= {len(cnts)}")
+    cnts=sorted(cnts, key=lambda c: cv2.boundingRect(c)[1])    
+    return cnts
 
-    return[]
+# Make sure to call the function with actual data, e.g.,
+# fixed_rows = fix_missing_num_bubbles(bw_img, cnts)
+
 
 
 def remove_not_aligned_bubbls(cnts: list) -> list:

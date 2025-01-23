@@ -97,7 +97,14 @@ if __name__ == "__main__":
                         max_ratio+=0.01
                 number_cnts=get_number_bubbles(adaptive_frame,cnts)
                 if len(number_cnts)<40:
-                    fix_missing_num_bubbles(adaptive_frame,number_cnts)
+                    print(f'image  [{i+1}]    - from 40  found {len(number_cnts)}  ')
+                    number_cnts=fix_missing_num_bubbles(adaptive_frame,number_cnts)
+                print(f'fix numbers image  [{i+1}]    - from 40  found {len(number_cnts)}  ')
+                for c in number_cnts:
+                                  draw_contours_on_frame(adaptive_frame,[c],display=True,add_colors=True,color='r')
+  
+                draw_contours_on_frame(adaptive_frame,number_cnts,display=True,add_colors=True,color='g')
+   
                 # print(len(number_cnts))
                 # aligned_cnts=remove_not_aligned_counters(adaptive_frame,cnts)
                 print(f'image  [{i+1}]    - from 40  found {len(number_cnts)}  min_ratio={min_ratio},max_ratio={max_ratio}')
