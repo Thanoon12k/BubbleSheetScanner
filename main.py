@@ -1,14 +1,12 @@
-from bubbles_caculations import find_student_answers, find_student_number
 import cv2
 import pandas as pd
 import os
-from GUI import get_pdf_path, display_student_results
-# from image_preprocessing import getAdaptiveThresh, getCircularContours, get_sub_images, pdf_to_images, resize_images,get_sub_images_from_4_points,find_four_squares
-from image_preprocessing import *
 import tkinter as tk
 from tkinter import filedialog
 import shutil
 
+from onefile import *
+from utils import *
 
 def calculate_student_score(student_answers, answer_key):
 
@@ -32,7 +30,7 @@ def calculate_student_score(student_answers, answer_key):
             
 #     return student_number,student_answers
 
-def get_answers_from_xlsx(path):
+# def get_answers_from_xlsx(path):
     data = pd.read_excel(path)
     answer_mapping = {'A': 0, 'B': 1, 'C': 2, 'D': 3, 'E': 4}
     answer_key = {}
@@ -69,62 +67,56 @@ def write_results_to_csv(student_number, score, correct_indices,student_answers)
 
 if __name__ == "__main__":
 
-            ANSWER_KEYS=get_answers_from_xlsx('answers.xlsx')
+            # ANSWER_KEYS=get_answers_from_xlsx('answers.xlsx')
             student_number=0000
             score=0
-
-            pdf_path = get_pdf_path()
-            pdf_images,output_folder = pdf_to_images(pdf_path)
-            pdf_images=resize_images(pdf_images,1200)
-            # pdf_images=[cv2.imread("Scan1.jpg")]
-            if os.path.exists(output_folder):
-                shutil.rmtree(output_folder)
-            # four_points=find_four_squares(pdf_images[0],analyses=True)
+            answers_bubbles=500
+            std_number_bubbles=40
+            total_bubbles=540
+            # pdf_path = get_pdf_path()
+            # pdf_images,output_folder = pdf_to_images(pdf_path)
+            # pdf_images=[cv2.imread('20_students/page_1.png'),cv2.imread('20_students/page_2.png'),cv2.imread('20_students/page_3.png'),cv2.imread('20_students/page_4.png'),cv2.imread('20_students/page_5.png'),cv2.imread('20_students/page_6.png'),cv2.imread('20_students/page_7.png'),cv2.imread('20_students/page_8.png'),cv2.imread('20_students/page_9.png'),cv2.imread('20_students/page_10.png'),cv2.imread('20_students/page_11.png'),cv2.imread('20_students/page_12.png'),cv2.imread('20_students/page_13.png'),cv2.imread('20_students/page_14.png'),cv2.imread('20_students/page_15.png'),cv2.imread('20_students/page_16.png'),cv2.imread('20_students/page_17.png'),cv2.imread('20_students/page_18.png'),cv2.imread('20_students/page_19.png'),cv2.imread('20_students/page_20.png'),cv2.imread('20_students/page_21.png'),cv2.imread('20_students/page_22.png')]
+            pdf_images=[cv2.imread('20_students/page_8.png')]
+            # pdf_images=[cv2.imread('blank.png')]
+            # pdf_images=resize_images(pdf_images,1200)
             
-            root = tk.Tk()
-            root.withdraw()  # Hide the root window
 
-            for pp, image in enumerate(pdf_images):
+            for  i,page in enumerate(pdf_images):
                 student_answers = []
                 student_number = ''
-                canny=OrigingetCannyFrame(pdf_images[0])
-                adaptive=OrigingetCannyFrame(pdf_images[0])
-                # display_images([canny],'',50)
-                # display_images([adaptive],'',50)
-                four_points=find_four_squares(image,analyses=False)
-                sub_images =get_five_sub_images(image,four_points)
-
-                for i, img in enumerate(sub_images):
-                    # ad_image=getAdaptiveThresh(img)
-                    adaptive=getAdaptiveThresh(img)
-                    # display_images([adaptive],'ORiginal',100)
-                    # adaptive=getAdaptiveThresh(img)
-                    # display_images([adaptive],'mine',100)
-                    counters=getCircularContours(adaptive,img)
-                    n_contours=len(counters)
-                    # draw_contours_on_frame(img.copy(),counters,color='b',display=False)
-                    # save_images([img],'results',f"img_{pp}")
-
-                    if i == 0:
-                        student_number,chosen_bubbles = find_student_number(img,adaptive,counters, i,analyse=False)
-                        print(f"student number : {student_number}")
-                        # draw_contours_on_frame(img,chosen_bubbles,color='r',display=True)
+                min_ratio=0.99
+                max_ratio=1.01
+                adaptive_frame=ggetAdaptiveThresh(page,maxx=55,minn=20)
+                cnts_length=0
                     
+                while cnts_length<total_bubbles and min_ratio>0:
+                        cnts=getBubblesContours(page,adaptive_frame,540,min_ratio,max_ratio)
                         
-                    else:
-                        
-                        block_answers,chosen_bubbles_ans=find_student_answers(img,adaptive,counters, i)
-                        student_answers += block_answers
-                        print(f"block answers {(i-1)*25}-{i*25}: {student_answers[(i-1)*25:i*25]}")
-                        # display_images([draw_contours_on_frame(img,chosen_bubbles_ans)],scale=75)
-
-                        
+                        cnts_length=len(cnts)
+                        min_ratio-=0.01
+                        max_ratio+=0.01
+                number_cnts=get_number_bubbles(adaptive_frame,cnts)
+                if len(number_cnts)<40:
+                    fix_missing_num_bubbles(adaptive_frame,number_cnts)
+                # print(len(number_cnts))
+                # aligned_cnts=remove_not_aligned_counters(adaptive_frame,cnts)
+                print(f'image  [{i+1}]    - from 40  found {len(number_cnts)}  min_ratio={min_ratio},max_ratio={max_ratio}')
+                # page=draw_contours_on_frame(adaptive_frame,cnts,add_colors=True)
+                # page=draw_rect_top_right_quarter(page)
                 
-                score, correct_indices = calculate_student_score(student_answers, ANSWER_KEYS)
-                write_results_to_csv(student_number, score, correct_indices,student_answers)
-                print(f"Student ( {student_number} ) score : {score}, correct_answers: {correct_indices}")
+                # save_images   ([page],'22',f"[{i+1}]")
+                # display_images([page],"adaptive page",scale=50)
+                # display_images([draw_contours_on_frame(page,aligned_cnts,color='b')],"adaptive page",scale=50)
+                
+                # student_number,choosen_bubbles_number = find_student_number(img,adaptive,counters, i,analyse=False)
+                # print(f"student number : {student_number}")
+                # student_answers,choosen_bubbles_answers=find_student_answers(img,adaptive,counters, i)
+                # print(f"student answers {student_answers}")
+                
+                # score, correct_indices = calculate_student_score(student_answers, ANSWER_KEYS)
+                # write_results_to_csv(student_number, score, correct_indices,student_answers)
+                # print(f"Student ( {student_number} ) score : {score}, correct_answers: {correct_indices}")
 
-                display_student_results(student_number, score, root)
-
-
-            root.mainloop()
+                # display_student_results(student_number, score, root)
+                
+            print(f"found results for  {len(pdf_images)} students succsessfully !!")

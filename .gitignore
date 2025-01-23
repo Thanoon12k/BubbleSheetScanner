@@ -21,6 +21,13 @@ Thumbs.db
 # Logs
 *.log
 
+#media files
+*.jpg
+*.png
+*.jpeg
+*.pdf
+*.exe
+*.zip
 # Compiled Python files
 *.pyc
 
@@ -30,6 +37,8 @@ Thumbs.db
 # Distribution / packaging
 .Python
 build/
+pdfs/
+
 develop-eggs/
 dist/
 downloads/
