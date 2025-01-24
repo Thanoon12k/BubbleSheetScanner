@@ -4,6 +4,83 @@ import os
 from PIL import Image
 import numpy as np
 import fitz  
+import pandas as pd
+import tkinter as tk
+from tkinter import filedialog
+
+
+def calculate_student_score(student_answers, answer_key):
+    student_result = sum(1 for q_num, correct_ans in answer_key.items() if  student_answers[q_num] == correct_ans)
+    correct_indices = [q_num for q_num, correct_ans in answer_key.items() if q_num < len(student_answers) and student_answers[q_num] == correct_ans]    
+    return student_result, correct_indices
+
+def get_answers_from_xlsx(path):
+    data = pd.read_excel(path)
+    answer_mapping = {'A': 0, 'B': 1, 'C': 2, 'D': 3, 'E': 4}
+    answer_key = {}
+    for i, row in data.iterrows():
+                q=row.iloc[0]
+                answer_key[i] = answer_mapping.get(row.iloc[1], None)  # Handle invalid answers gracefully
+    return answer_key
+
+def write_results_to_csv(student_number, student_result, correct_indices,student_answers):
+        # Define file path
+        file_path = 'student_results.csv'
+        answer_mapping_reverse = {0: 'A', 1: 'B', 2: 'C', 3: 'D', 4: 'E'}
+        student_answers_mapped = [answer_mapping_reverse.get(ans, 'N/A') for ans in student_answers]
+        # Load existing DataFrame or create a new one
+        if os.path.exists(file_path):
+            results_df = pd.read_csv(file_path)
+        else:
+            results_df = pd.DataFrame(columns=['Student Number'] + ['student_result from 100'] + [f'Q{i+1}' for i in range(100)])
+
+        # Create a new row for the student
+        new_row = pd.DataFrame([[student_number] + [student_result] + student_answers_mapped], columns=results_df.columns)
+        student_number = str(student_number)
+        all_students_numbers=results_df['Student Number'].astype(str).values
+        
+        if student_number in all_students_numbers:
+            # Update the existing row
+            results_df.loc[results_df['Student Number'] == student_number] = new_row.values[0]
+        else:
+            # Append the new row to the DataFrame
+            results_df = pd.concat([results_df, new_row], ignore_index=True)
+
+        # Save the DataFrame to CSV
+        results_df.to_csv(file_path, index=False)
+
+
+
+def get_pdf_path():
+    root = tk.Tk()
+    root.withdraw()  # Hide the root window
+    file_path = filedialog.askopenfilename(filetypes=[("PDF files", "*.pdf")])
+    return file_path
+
+
+def display_student_results1(student_number, score, root):
+    result_window = tk.Toplevel(root)
+
+    result_window.title("Student Results")
+
+    # Center the window on the screen
+    window_width = 300
+    window_height = 200
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+    position_top = int(screen_height / 2 - window_height / 2)
+    position_right = int(screen_width / 2 - window_width / 2)
+    result_window.geometry(f'{window_width}x{window_height}+{position_right}+{position_top}')
+
+    # Set background color
+    result_window.configure(bg='lightblue')
+
+    # Create and pack the labels and button with colors
+    tk.Label(result_window, text=f"Student Number: {student_number}", font=("Helvetica", 16), bg='lightblue', fg='darkblue').pack(pady=10)
+    tk.Label(result_window, text=f"Score: {score}", font=("Helvetica", 16), bg='lightblue', fg='darkblue').pack(pady=10)
+    tk.Button(result_window, text="OK", font=("Helvetica", 14), bg='darkblue', fg='white', command=result_window.destroy).pack(pady=10)
+
+
 
 def display_images(images, title="I", scale=100):
     for i, img in enumerate(images):
@@ -33,7 +110,14 @@ def draw_contours_on_frame(frame, contours,color='r',display=False,scale=100):
     if display:
         display_images([frame])
     return frame
-
+def resize_images(images, width=1200):
+    resized_images = []
+    for img in images:
+        aspect_ratio = img.shape[1] / img.shape[0]
+        height = int(width / aspect_ratio)
+        resized_img = cv2.resize(img, (width, height))
+        resized_images.append(resized_img)
+    return resized_images
 def getBubblesContours(img, adaptiveFrame, expected_count):
         min_ratio=0.99
         max_ratio=1.01  
@@ -385,16 +469,17 @@ def ggetAdaptiveThresh(frame,maxx=99,minn=9):
 def save_images(images, folder_name,image_name_context=''):
     os.makedirs(folder_name, exist_ok=True)
     for i, img in enumerate(images):
-        filename = os.path.join(folder_name, f"__{i}__{image_name_context}.jpg")
+        image_name=f"page_[{image_name_context}].jpg"
+        filename = os.path.join(folder_name, image_name)
         cv2.imwrite(filename, img)
-    print(f"Saved images to folder: {folder_name}")
+    print(f"Saved images to folder: {folder_name}\\{image_name}")
 
 def get_pdf_path():
     root = tk.Tk()
     root.withdraw()  # Hide the root window
+    root.attributes('-topmost', True)  # Make the dialog appear on top
     file_path = filedialog.askopenfilename(filetypes=[("PDF files", "*.pdf")])
     return file_path
-
 def pdf_to_images(pdf_path):
     pdf_name = os.path.splitext(os.path.basename(pdf_path))[0]
     output_folder = os.path.join(os.path.dirname(pdf_path), f"{pdf_name}_students")
