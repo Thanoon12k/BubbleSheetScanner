@@ -233,12 +233,13 @@ def add_miss_bubbles_to_row(fm,ref,row,normlize_value):
 def find_ref_row(fm, cnts, num_columns):
     cnts = sorted(cnts, key=lambda c: cv2.boundingRect(c)[1])
     _, _, normlized_value, _ = cv2.boundingRect(cnts[0])
+
     # display_images([draw_contours_on_frame(fm, cnts, color='g')], scale=70)
     slice = []
     y_first = cv2.boundingRect(cnts[0])[1]
     for c in cnts:
         y = cv2.boundingRect(c)[1]
-        if y_first - normlized_value < y < y_first + normlized_value:
+        if y_first - normlized_value < y < y_first + int(normlized_value//2):
             slice.append(c)
         else:
             y_first = y
@@ -269,8 +270,9 @@ def add_answers_miss_bubbles_to_row(fm, row,ref, normlize_value,num_columns):
 
     row = [c for c in row if abs(cv2.boundingRect(c)[1] - first_bubble_y) < normlize_value]
     miss_row=[c for c in row if abs(cv2.boundingRect(c)[1] - first_bubble_y) < normlize_value]
-
-    while len(row)<num_columns:
+    jj=0
+    while len(row)<num_columns and jj<10:
+        jj+=1
         for i in range(0,num_columns-1):
             equal_X=abs(cv2.boundingRect(ref[i])[0]-cv2.boundingRect(row[i])[0]) <normlize_value
             
@@ -396,7 +398,25 @@ def fix_missing_block_bubbles(bw_img, cnts: list) -> list:
 
 def remove_not_aligned_bubbls(cnts: list) -> list:
     filterd_cnts=[]
-    return cnts
+    for cnt in cnts:
+        x, y, w, h = cv2.boundingRect(cnt)
+        radius = max(w, h)  
+        has_neighbor = False
+
+        for other_cnt in cnts:
+            if cnt is other_cnt:
+                continue
+            ox, oy, ow, oh = cv2.boundingRect(other_cnt)
+            if abs(ox - x) <= radius * 2 and abs(oy - y) <= radius * 2:
+                has_neighbor = True
+                break
+
+        if has_neighbor:
+            filterd_cnts.append(cnt)
+
+    return filterd_cnts
+
+
 def get_answers_blocks_bubbles(pg,fm,cnts):
 
     cnts = sorted(cnts, key=lambda c: cv2.boundingRect(c)[1])
@@ -510,6 +530,28 @@ def draw_rect_on_frame(fm, axis=[],thikness=4): #axis=[x1,x2,x3,x4]
         cv2.rectangle(fm, (x1, y1), (x2, y2), (0, 255, 0), thikness)
     return fm
 
+
+def draw_rects_on_blocks(fm,cnts):
+    cnts = sorted(cnts, key=lambda c: cv2.boundingRect(c)[1])
+    cnts = cnts[40:] 
+    bubble_columns=5
+    bubbles_rows=25
+    radious=int(cv2.boundingRect(cnts[0])[2] //2)
+    x1 = min(cv2.boundingRect(c)[0] for c in cnts)-radious
+    y1 = min(cv2.boundingRect(c)[1] for c in cnts)-radious
+    x2 = max(cv2.boundingRect(c)[0] + cv2.boundingRect(c)[2] for c in cnts)+radious
+    y2 = max(cv2.boundingRect(c)[1] + cv2.boundingRect(c)[3] for c in cnts)+radious
+    width = x2 - x1
+    gap = 5*radious
+    rect_width = (width-(gap*3)) // 4
+    rects = []
+    for i in range(5):
+        start_x = x1 + (i * (rect_width + gap))
+        rect = [start_x, y1, start_x + rect_width, y2]
+        rects.append(rect)
+        fm = draw_rect_on_frame(fm, rect, 2)
+    
+        return fm
 def draw_rect_top_right_quarter(page):
     h, w, _ = page.shape
    
@@ -528,7 +570,7 @@ def save_images(images, folder_name,image_name_context=''):
         image_name=f"page_[{image_name_context}].jpg"
         filename = os.path.join(folder_name, image_name)
         cv2.imwrite(filename, img)
-    # print(f"Saved images to folder: {folder_name}\\{image_name}")
+    print(f"Saved images to folder: {folder_name}\\{image_name}")
 
 def get_pdf_path():
     root = tk.Tk()
@@ -562,96 +604,123 @@ def pdf_to_images(pdf_path):
     # print(f"Images saved in: {output_folder}")  
 
     return images,output_folder
+
+
 if __name__ == "__main__":
-    answers_bubbles_count = 500
-    student_number_bubbles_count = 40
-    total_bubbles_count = answers_bubbles_count + student_number_bubbles_count
-    output_folder = ''
-    pdf_path, pdf_name = get_pdf_path()
+                
+            
+                block_bubbles_count=125
+                answers_bubbles_count=500
+                student_number_bubbles_count=40
+                total_bubbles_count=answers_bubbles_count+student_number_bubbles_count
+                output_folder=''
+                pdf_path,pdf_name = get_pdf_path()
+                # pdf_path,pdf_name = '7.pdf','7'
+                pdf_images,output_folder = pdf_to_images(pdf_path)
 
-    root = tk.Tk()
-    root.withdraw()  # Hide the root window
+                # pdf_images=[cv2.imread('20_students/page_1.png'),cv2.imread('20_students/page_2.png'),cv2.imread('20_students/page_3.png'),cv2.imread('20_students/page_4.png'),cv2.imread('20_students/page_5.png'),cv2.imread('20_students/page_6.png'),cv2.imread('20_students/page_7.png'),cv2.imread('20_students/page_8.png'),cv2.imread('20_students/page_9.png'),cv2.imread('20_students/page_10.png'),cv2.imread('20_students/page_11.png'),cv2.imread('20_students/page_12.png'),cv2.imread('20_students/page_13.png'),cv2.imread('20_students/page_14.png'),cv2.imread('20_students/page_15.png'),cv2.imread('20_students/page_16.png'),cv2.imread('20_students/page_17.png'),cv2.imread('20_students/page_18.png'),cv2.imread('20_students/page_19.png'),cv2.imread('20_students/page_20.png'),cv2.imread('20_students/page_21.png'),cv2.imread('20_students/page_22.png')]
+                # pdf_images=[cv2.imread('20_students/page_8.png')]
+                # pdf_images=[cv2.imread('9.jpg')]
+                # pdf_images=resize_images(pdf_images,1200)
+               
+                if os.path.exists(output_folder):
+                    shutil.rmtree(output_folder)
+                
+                root = tk.Tk()
+                root.withdraw()  # Hide the root window
 
-    progress_window = tk.Toplevel(root)
-    progress_window.title("Processing PDF")
-    progress_label = tk.Label(progress_window, text="Please wait, converting PDF pages to images...", font=("Helvetica", 14))
-    progress_label.pack(pady=20)
-    progress_window.update()
+                for  i,img in enumerate(pdf_images):
 
-    pdf_images, output_folder = pdf_to_images(pdf_path)
+                    # lines=get_longest_horizontal_lines(img)
+                    # imggg=create_rectangles_between_lines(img, lines)
+                    # for line in lines:
+                    #     x1, y1, x2, y2 = line
+                    #     cv2.circle(imggg, (x1, y1), 30, (0, 0, 255), -1)
+                    #     cv2.circle(imggg, (x2, y2), 30, (0, 0, 255), -1)
+                    # display_images([imggg],scale=30)
+                    # continue
 
-    if os.path.exists(output_folder):
-        shutil.rmtree(output_folder)
+                    student_result=0
+                    student_answers = []
+                    student_number = ''
+                    choosen_std_num_bubbles=[]
+                    choosen_answers_bubbles=[]
+                    # img=draw_rect_top_right_quarter(img)
+                    if (i+1)==40:
+                        print("break here")
+                    adaptive_frame=ggetAdaptiveThresh(img,maxx=55,minn=20)
+                    # print('app start')
+                    total_bubbles=getBubblesContours(img,adaptive_frame,total_bubbles_count)
+                    # print(f'fix numbers image  [{i+1}]    - snb {len(total_bubbles)}   ')
+                    error_image=draw_contours_on_frame(img.copy(),total_bubbles)
+                    # error_image=draw_rects_on_blocks(error_image,total_bubbles)
+                    if len(total_bubbles)>total_bubbles_count:
+                        total_bubbles=remove_not_aligned_bubbls(total_bubbles)
 
-    progress_label.config(text=f"Please wait, getting {len(pdf_images)} students results...")
-    progress_window.update()
+                        # display_images([error_image],scale=33)
+                        # display_images([draw_contours_on_frame(img.copy(),total_bubbles,color='b')],scale=33)
+                    student_num_bubbles=[]
+                    try:
+                        student_num_bubbles=get_student_num_bubbles(adaptive_frame,total_bubbles)
 
-    results_listbox = tk.Listbox(progress_window, height=20, width=80)
-    results_listbox.pack(pady=20)
-    progress_window.update()
+                    except:
+                        
+                        
+                        save_images([error_image],f'{pdf_name}_archive/errors',i+1)
+                        print(f'-------------------------------------------------------------------------------------------errror numbers   [{i+1}]    - snb {len(student_num_bubbles)}  ')
+                        continue
 
-    for i, img in enumerate(pdf_images):
-        student_result = 0
-        student_answers = []
-        student_number = ''
-        choosen_std_num_bubbles = []
-        choosen_answers_bubbles = []
+                    student_number,choosen_std_num_bubbles=find_student_number1(img,adaptive_frame,student_num_bubbles,i)
+                    blocks_answers_bubbles=[]
+                    
+                    try:
+                        blocks_answers_bubbles=get_answers_blocks_bubbles(img,adaptive_frame,total_bubbles)
+                        
+                    except:
+                        print(f'-------------------------------------------------------------------------------------------------errror answers bubbles   [{i+1}]    - snb {len(blocks_answers_bubbles)}  ')
+                        
+                        save_images([error_image],f'{pdf_name}_archive/errors',i+1)
+                        continue
 
-        adaptive_frame = ggetAdaptiveThresh(img, maxx=55, minn=20)
-        total_bubbles = getBubblesContours(img, adaptive_frame, total_bubbles_count)
-        
-        student_num_bubbles = []
-        try:
-            student_num_bubbles = get_student_num_bubbles(adaptive_frame, total_bubbles)
-        except:
-            img = draw_contours_on_frame(img, total_bubbles)
-            save_images([img], f'{pdf_name}_archive/errors', i + 1)
-            results_listbox.insert(tk.END, f'Error processing student number on page {i + 1}')
-            results_listbox.yview(tk.END)
-            progress_window.update()
-            continue
+                    try:
+                        if len(student_num_bubbles)<student_number_bubbles_count:
+                            student_number=f'error in page {[i+1]}'
+                            print(f'bad stdnt number bubbles  [{i+1}]    - snb {len(student_num_bubbles)}  ')
+                        for j, block in enumerate(blocks_answers_bubbles):
+                                # print(f'image------- {i+1}')
+                                # display_images([draw_contours_on_frame(img.copy(),blocks_answers_bubbles[j],color='r')],scale=33)
 
-        student_number, choosen_std_num_bubbles = find_student_number1(img, adaptive_frame, student_num_bubbles, i)
-        blocks_answers_bubbles = []
+                                if (len(block) < block_bubbles_count):
+                                    lllll=len(block)
+                                    blocks_answers_bubbles[j]=fix_missing_block_bubbles(adaptive_frame,block)
+                                sub_ans,sub_ans_bubbles= find_student_answers1(img,adaptive_frame,blocks_answers_bubbles[j],j)
+                                choosen_answers_bubbles+=sub_ans_bubbles
+                                student_answers+=sub_ans
+                    except:
+                        print(f'-------------------------------------------------------------------------- global error  [{i+1}]    - snb {len(student_num_bubbles)}  ')
+                        
+                        save_images([error_image],f'{pdf_name}_archive/errors',i+1)
+                        continue
+                    answers_bbles = [bubble for block in blocks_answers_bubbles for bubble in block] 
+                    all_image_bubbles=answers_bbles+student_num_bubbles
 
-        try:
-            blocks_answers_bubbles = get_answers_blocks_bubbles(img, adaptive_frame, total_bubbles)
-        except:
-            img = draw_contours_on_frame(img, total_bubbles)
-            save_images([img], f'{pdf_name}_archive/errors', i + 1)
-            results_listbox.insert(tk.END, f'Error processing answers bubbles on page {i + 1}')
-            results_listbox.yview(tk.END)
-            progress_window.update()
-            continue
+                    
+                    print(f'page -->  [{i+1}]  - from {len(student_num_bubbles)} - {len(answers_bbles)} = 580  found {len(total_bubbles)}  ')
+                
+                    ANSWER_KEYS=get_answers_from_xlsx('answers.xlsx')
 
-        try:
-            if len(student_num_bubbles) < student_number_bubbles_count:
-                student_number = f'error in page {i + 1}'
-            for j, block in enumerate(blocks_answers_bubbles):
-                if len(block) < answers_bubbles_count:
-                    blocks_answers_bubbles[j] = fix_missing_block_bubbles(adaptive_frame, block)
-                sub_ans, sub_ans_bubbles = find_student_answers1(img, adaptive_frame, blocks_answers_bubbles[j], j)
-                choosen_answers_bubbles += sub_ans_bubbles
-                student_answers += sub_ans
-        except:
-            img = draw_contours_on_frame(img, total_bubbles)
-            save_images([img], f'{pdf_name}_archive/errors', i + 1)
-            results_listbox.insert(tk.END, f'Error processing answers on page {i + 1}')
-            results_listbox.yview(tk.END)
-            progress_window.update()
-            continue
+                    student_result, correct_indices = calculate_student_score(student_answers, ANSWER_KEYS)
+                    all_choosen_frame=draw_contours_on_frame(img,choosen_answers_bubbles+choosen_std_num_bubbles,color='b')
+                    cv2.putText(all_choosen_frame, f"Student: {student_number}, student_result: {student_result}", (30, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 4)
+                    save_images   ([all_choosen_frame],f'{pdf_name}_archive',i+1)
+    
+                    write_results_to_csv(student_number, student_result, correct_indices,student_answers)                
+                    print(f"Student ( {student_number} ) student_result : {student_result}, page: {i+1} ")
+                    display_student_results1(student_number, student_result, root)
+                # root.update()
+                root.mainloop()
+                    
+                    # root.mainloop()  # Start the Tkinter event loop
 
-        ANSWER_KEYS = get_answers_from_xlsx('answers.xlsx')
-        student_result, correct_indices = calculate_student_score(student_answers, ANSWER_KEYS)
-        all_choosen_frame = draw_contours_on_frame(img, choosen_answers_bubbles + choosen_std_num_bubbles, color='b')
-        cv2.putText(all_choosen_frame, f"Student: {student_number}, student_result: {student_result}", (30, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 4)
-        save_images([all_choosen_frame], f'{pdf_name}_archive', i + 1)
 
-        write_results_to_csv(student_number, student_result, correct_indices, student_answers)
-        results_listbox.insert(tk.END, f"{i + 1} - Student ({student_number}) --> results {student_result} from 100% saved successfully")
-        results_listbox.yview(tk.END)
-        progress_window.update()
-
-    results_listbox.insert(tk.END, "All student results calculated successfully")
-    results_listbox.yview(tk.END)
-    root.mainloop()
+                    
